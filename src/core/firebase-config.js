@@ -15,6 +15,23 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+const requiredFirebaseKeys = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId'
+];
+
+const missingFirebaseKeys = requiredFirebaseKeys.filter(key => !firebaseConfig[key]);
+if (missingFirebaseKeys.length > 0) {
+  throw new Error(
+    `Missing Firebase config: ${missingFirebaseKeys.join(', ')}. ` +
+    'Set VITE_FIREBASE_* values in .env.local before building/deploying.'
+  );
+}
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
