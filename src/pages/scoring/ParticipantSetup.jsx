@@ -5,6 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { Search, Plus, X, Globe, MapPin, Loader2 } from 'lucide-react';
 import { getCountryDisplayName, normalizeScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
+import { buildNumberedParticipant } from './participantUtils';
 
 export default function ParticipantSetup({ session }) {
   const [theme] = useState(getStoredScoringTheme());
@@ -97,17 +98,13 @@ export default function ParticipantSetup({ session }) {
   }, [queryCity, cities]);
 
   const handleAddGlobal = (country) => {
-    if (!selectedParticipants.find(p => p.id === country.id)) {
-      setSelectedParticipants(prev => [...prev, { ...country, type: 'country' }]);
-    }
+    setSelectedParticipants(prev => [...prev, buildNumberedParticipant(country, prev, 'country')]);
     setQueryCountry('');
     setCountryResults([]);
   };
 
   const handleAddNational = (city) => {
-    if (!selectedParticipants.find(p => p.id === city.id)) {
-      setSelectedParticipants(prev => [...prev, { ...city, type: 'city' }]);
-    }
+    setSelectedParticipants(prev => [...prev, buildNumberedParticipant(city, prev, 'city')]);
     setQueryCity('');
     setCityResults([]);
   };
@@ -173,6 +170,21 @@ export default function ParticipantSetup({ session }) {
                     ))}
                   </motion.div>
                 )}
+                {queryCountry.trim().length > 1 && countryResults.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="scoring-popover absolute top-14 left-0 right-0 rounded-xl p-6 z-30 text-center"
+                  >
+                    <p className="text-sm text-app-muted mb-4 opacity-70">{t.notFound}</p>
+                    <button
+                      onClick={() => handleAddGlobal({ name: queryCountry.trim(), id: queryCountry.trim().replace(/\s+/g, '').toUpperCase(), flag: '🏳️' })}
+                      className="scoring-btn-primary text-xs px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest shadow-lg"
+                    >
+                      {t.addManualEntry(queryCountry)}
+                    </button>
+                  </motion.div>
+                )}
               </AnimatePresence>
             </div>
           )}
@@ -206,6 +218,31 @@ export default function ParticipantSetup({ session }) {
                             <span className="scoring-popover-secondary font-medium text-sm">{c.name}</span>
                           </button>
                         ))}
+                      </motion.div>
+                    )}
+                    {queryCountry.trim().length > 1 && countryResults.length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="scoring-popover absolute top-[75px] left-0 right-0 rounded-xl p-6 z-30 text-center"
+                      >
+                        <p className="text-sm text-app-muted mb-4 opacity-70">{t.notFound}</p>
+                        <button
+                          onClick={() => {
+                            const manualCountry = {
+                              name: queryCountry.trim(),
+                              apiName: queryCountry.trim(),
+                              id: queryCountry.trim().replace(/\s+/g, '').toUpperCase(),
+                              flag: '🏳️'
+                            };
+                            setSelectedParentCountry(manualCountry);
+                            setQueryCountry('');
+                            setCountryResults([]);
+                          }}
+                          className="scoring-btn-primary text-xs px-5 py-2.5 rounded-xl font-bold uppercase tracking-widest shadow-lg"
+                        >
+                          {t.addManualEntry(queryCountry)}
+                        </button>
                       </motion.div>
                     )}
                   </AnimatePresence>

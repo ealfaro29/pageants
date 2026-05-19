@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
-import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings } from 'lucide-react';
+import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX } from 'lucide-react';
 import {
   getCountryDisplayName,
   getDefaultPhaseName,
@@ -22,9 +22,10 @@ import {
   getStoredScoringTheme,
   persistScoringTheme
 } from './scoringTheme';
+import { buildNumberedParticipant } from './participantUtils';
 
 function getDefaultPhase(language) {
-  return { name: getDefaultPhaseName(0, language), cutoff: null, participantIds: null, status: 'active' };
+  return { name: getDefaultPhaseName(0, language), cutoff: null, participantIds: null, absentParticipantIds: null, status: 'active' };
 }
 
 function normalizePhase(phase, index, currentPhaseIndex, language) {
@@ -32,11 +33,15 @@ function normalizePhase(phase, index, currentPhaseIndex, language) {
   const participantIds = Array.isArray(phase?.participantIds)
     ? phase.participantIds.filter(id => typeof id === 'string' && id.trim())
     : null;
+  const absentParticipantIds = Array.isArray(phase?.absentParticipantIds)
+    ? phase.absentParticipantIds.filter(id => typeof id === 'string' && id.trim())
+    : null;
 
   return {
     name: typeof phase?.name === 'string' && phase.name.trim() ? phase.name.trim() : getDefaultPhaseName(index, language),
     cutoff: Number.isFinite(cutoff) && cutoff > 0 ? cutoff : null,
     participantIds: participantIds?.length ? participantIds : null,
+    absentParticipantIds: absentParticipantIds?.length ? absentParticipantIds : null,
     status:
       phase?.status === 'completed' || phase?.status === 'active'
         ? phase.status
@@ -138,6 +143,7 @@ export default function SessionBoard() {
   const [searchResults, setSearchResults] = useState([]);
   const [cities, setCities] = useState([]);
   const [selectedParentCountry, setSelectedParentCountry] = useState(null);
+  const [phaseNameDraft, setPhaseNameDraft] = useState('');
   const [loadingCities, setLoadingCities] = useState(false);
   const searchRef = useRef(null);
   const scoreSaveTimersRef = useRef({});
@@ -218,6 +224,15 @@ export default function SessionBoard() {
     judgeRegistrationAttemptedRef.current = false;
   }, [sessionId, judgeName]);
 
+  useEffect(() => {
+    if (!session) return;
+    const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
+    const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
+    const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
+    const currentPhaseName = normalizedPhases[safePhaseIndex]?.name || getDefaultPhaseName(safePhaseIndex, currentLanguage);
+    setPhaseNameDraft(currentPhaseName);
+  }, [session, currentLanguage]);
+
   // Session + scores listener
   useEffect(() => {
     if (!sessionId || !judgeName) { if (!judgeName) navigate('/session/join'); return; }
@@ -295,9 +310,9 @@ export default function SessionBoard() {
 
   const addParticipant = async (item) => {
     const participants = session.participants || [];
-    if (participants.find(p => p.id === item.id)) { setSearchQuery(''); setSearchResults([]); return; }
+    const nextParticipant = buildNumberedParticipant(item, participants, session.type === 'Global' ? 'country' : 'city');
     await updateDoc(doc(db, "sessions", session.id), {
-      participants: [...participants, { ...item, type: session.type === 'Global' ? 'country' : 'city' }]
+      participants: [...participants, nextParticipant]
     });
     setSearchQuery(''); setSearchResults([]);
   };
@@ -309,15 +324,47 @@ export default function SessionBoard() {
   };
 
   const updatePhaseName = async (name) => {
+    const normalizedName = String(name || '').trim();
+    if (!normalizedName || normalizedName === currentPhase.name) return;
     const nextPhases = [...phases];
-    nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name };
+    nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name: normalizedName };
     await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+  };
+
+  const commitPhaseName = () => {
+    const normalizedName = String(phaseNameDraft || '').trim();
+    if (!normalizedName) {
+      setPhaseNameDraft(currentPhase.name);
+      return;
+    }
+    updatePhaseName(normalizedName).catch(() => {
+      setPhaseNameDraft(currentPhase.name);
+    });
   };
 
   const updatePhaseCutoff = async (value) => {
     const nextPhases = [...phases];
     const num = parseInt(value);
     nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], cutoff: isNaN(num) || num <= 0 ? null : num };
+    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+  };
+
+  const toggleParticipantAbsent = async (participantId) => {
+    if (!isHost || currentPhaseIndex <= 0 || !participantId) return;
+
+    const phase = phases[currentPhaseIndex] || {};
+    const currentAbsentIds = Array.isArray(phase.absentParticipantIds) ? phase.absentParticipantIds : [];
+    const isCurrentlyAbsent = currentAbsentIds.includes(participantId);
+    const nextAbsentIds = isCurrentlyAbsent
+      ? currentAbsentIds.filter(id => id !== participantId)
+      : [...currentAbsentIds, participantId];
+
+    const nextPhases = [...phases];
+    nextPhases[currentPhaseIndex] = {
+      ...phase,
+      absentParticipantIds: nextAbsentIds.length ? nextAbsentIds : null
+    };
+
     await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
   };
 
@@ -389,6 +436,7 @@ export default function SessionBoard() {
       name: getDefaultPhaseName(newPhaseIndex, currentLanguage),
       cutoff: null,
       status: 'active',
+      absentParticipantIds: null,
       participantIds: qualifiedParticipants.map(participant => participant.id)
     });
 
@@ -492,12 +540,49 @@ export default function SessionBoard() {
   const phaseScores = scores[phaseKey] || {};
 
   // Get participants for a given phase index
-  const getPhaseParticipants = (phaseIdx) => {
+  const getPhaseParticipants = (phaseIdx, options = {}) => {
+    const includeAbsent = Boolean(options.includeAbsent);
     if (phaseIdx < 0) return [];
     if (phaseIdx === 0) return allParticipants;
+
     const phase = phases[phaseIdx];
-    if (phase?.participantIds?.length) {
-      return phase.participantIds.map(participantId => participantMap.get(participantId)).filter(Boolean);
+    const absentIds = new Set(Array.isArray(phase?.absentParticipantIds) ? phase.absentParticipantIds : []);
+
+    const baseParticipants = phase?.participantIds?.length
+      ? phase.participantIds.map(participantId => participantMap.get(participantId)).filter(Boolean)
+      : null;
+
+    if (baseParticipants) {
+      const targetCount = baseParticipants.length;
+      const baseSet = new Set(baseParticipants.map(participant => participant.id));
+      const activeBase = baseParticipants.filter(participant => !absentIds.has(participant.id));
+      const previousParticipants = getPhaseParticipants(phaseIdx - 1);
+      const previousScores = scores[`phase_${phaseIdx - 1}`] || {};
+      const rankedAlternates = rankParticipantsByPhaseScores(previousParticipants, previousScores)
+        .filter(participant => !baseSet.has(participant.id) && !absentIds.has(participant.id));
+
+      const activeParticipants = [...activeBase];
+      rankedAlternates.forEach(participant => {
+        if (activeParticipants.length < targetCount) {
+          activeParticipants.push(participant);
+        }
+      });
+
+      if (!includeAbsent) {
+        return activeParticipants;
+      }
+
+      const absentBaseIds = baseParticipants
+        .filter(participant => absentIds.has(participant.id))
+        .map(participant => participant.id);
+      const absentAlternateIds = rankParticipantsByPhaseScores(previousParticipants, previousScores)
+        .filter(participant => absentIds.has(participant.id) && !baseSet.has(participant.id))
+        .map(participant => participant.id);
+      const absentParticipants = [...absentBaseIds, ...absentAlternateIds]
+        .map(participantId => participantMap.get(participantId))
+        .filter(Boolean);
+
+      return [...activeParticipants, ...absentParticipants];
     }
 
     const prevPhase = phases[phaseIdx - 1];
@@ -510,6 +595,9 @@ export default function SessionBoard() {
   };
 
   const currentParticipants = getPhaseParticipants(currentPhaseIndex);
+  const currentPhaseParticipantsWithAbsent = getPhaseParticipants(currentPhaseIndex, { includeAbsent: true });
+  const currentParticipantIds = new Set(currentParticipants.map(participant => participant.id));
+  const currentAbsentParticipants = currentPhaseParticipantsWithAbsent.filter(participant => !currentParticipantIds.has(participant.id));
 
   const phaseHasSavedScores = (phaseIdx) => {
     const phaseScoresMap = scores[`phase_${phaseIdx}`];
@@ -530,6 +618,16 @@ export default function SessionBoard() {
     const myScore = pScores[judgeName];
     return { ...p, avg, voteCount: vals.length, myScore };
   });
+  const tableParticipants = [
+    ...scoredParticipants,
+    ...currentAbsentParticipants.map(participant => ({
+      ...participant,
+      avg: 0,
+      voteCount: 0,
+      myScore: null,
+      isAbsent: true
+    }))
+  ];
 
   // Calculate who is actually making the cut based on scores, not alphabetical order
   const rankedForCutoff = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
@@ -745,8 +843,18 @@ export default function SessionBoard() {
             <div className="flex items-center gap-4 mt-3">
               {isHost ? (
                 <input
-                  type="text" value={currentPhase.name}
-                  onChange={e => updatePhaseName(e.target.value)}
+                  type="text" value={phaseNameDraft}
+                  onChange={e => setPhaseNameDraft(e.target.value)}
+                  onBlur={commitPhaseName}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    }
+                    if (e.key === 'Escape') {
+                      setPhaseNameDraft(currentPhase.name);
+                      e.currentTarget.blur();
+                    }
+                  }}
                   className="bg-transparent text-xl font-bold text-app-text focus:outline-none border-b border-transparent focus:border-app-border transition-colors flex-1 min-w-0"
                   placeholder={t.board.phaseNamePlaceholder}
                 />
@@ -800,6 +908,31 @@ export default function SessionBoard() {
                         ))}
                       </motion.div>
                     )}
+                    {searchQuery.trim().length > 1 && searchResults.length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
+                      >
+                        <button
+                          onClick={() => {
+                            const rawName = searchQuery.trim();
+                            const manualCountry = {
+                              name: rawName,
+                              apiName: rawName,
+                              id: rawName.replace(/\s+/g, '').toUpperCase(),
+                              flag: '🏳️'
+                            };
+                            setSelectedParentCountry(manualCountry);
+                            setSearchQuery('');
+                            setSearchResults([]);
+                          }}
+                          className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest"
+                        >
+                          {t.board.addManualEntry(searchQuery)}
+                        </button>
+                      </motion.div>
+                    )}
                   </AnimatePresence>
                 </div>
               )}
@@ -837,13 +970,27 @@ export default function SessionBoard() {
                         ))}
                       </motion.div>
                     )}
+                    {session.type === 'Global' && searchQuery.trim().length > 1 && searchResults.length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
+                      >
+                        <button
+                          onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: '🏳️' })}
+                          className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest"
+                        >
+                          {t.board.addManualEntry(searchQuery)}
+                        </button>
+                      </motion.div>
+                    )}
                     {session.type === 'Nacional' && searchQuery.length > 1 && searchResults.length === 0 && cities.length > 0 && !loadingCities && (
                       <motion.div 
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
                       >
-                        <button onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry.flag })}
+                        <button onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry.flag })}
                           className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest">
                           {t.board.addManualEntry(searchQuery)}
                         </button>
@@ -895,7 +1042,7 @@ export default function SessionBoard() {
             <>
               {/* Scoring table */}
               <div className="flex-1 overflow-auto">
-                {scoredParticipants.length === 0 ? (
+                {tableParticipants.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-app-muted/50 gap-2 p-4">
                     <Search className="w-10 h-10 opacity-20" />
                     <p className="text-sm text-center">{currentPhaseIndex === 0 ? t.board.useSearchToAdd : t.board.noParticipantsPhase}</p>
@@ -907,11 +1054,12 @@ export default function SessionBoard() {
                         <th className="font-normal py-2 md:py-3 pl-2 md:pl-3 pr-1 w-5 md:w-6 text-center">#</th>
                         <th className="font-normal py-2 md:py-3 px-2 text-left">{t.board.contestantHeader}</th>
                          <th className="font-normal py-2 md:py-3 px-2 text-center w-36 md:w-52 bg-app-border/40 border-x border-app-border/50">{t.board.yourScoreHeader}</th>
-                        {isHost && currentPhaseIndex === 0 && <th className="font-normal py-2 md:py-3 pr-2 md:pr-3 w-8 md:w-10"></th>}
+                        {isHost && <th className="font-normal py-2 md:py-3 pr-2 md:pr-3 w-20 md:w-28"></th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-app-border/50">
-                      {scoredParticipants.map((p, idx) => {
+                      {tableParticipants.map((p, idx) => {
+                        const isAbsent = Boolean(p.isAbsent);
                         const hasScore = p.myScore !== undefined && p.myScore !== null;
                         const isQualified = qualifiedIds.has(p.id);
                         const sliderValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '0');
@@ -930,47 +1078,69 @@ export default function SessionBoard() {
                               </div>
                             </td>
                             <td className="py-1.5 md:py-3 px-1.5 md:px-3 bg-app-border/10 border-x border-app-border/20 text-center">
-                              <div className="flex items-center gap-2 md:gap-3">
-                                <input
-                                  type="range"
-                                  min="0"
-                                  max="10"
-                                  step="0.01"
-                                  value={sliderValue}
-                                  onChange={e => queueScoreSave(p.id, e.target.value)}
-                                  onMouseUp={e => flushScoreSave(p.id, e.currentTarget.value)}
-                                  onTouchEnd={e => flushScoreSave(p.id, e.currentTarget.value)}
-                                  onBlur={e => flushScoreSave(p.id, e.target.value)}
-                                  className="h-2.5 flex-1 cursor-pointer appearance-none rounded-full bg-app-border accent-app-accent"
-                                  aria-label={`${t.board.yourScoreHeader}: ${p.name}`}
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="10"
-                                  step="0.01"
-                                  value={sliderValue}
-                                  onChange={e => queueScoreSave(p.id, e.target.value)}
-                                  onBlur={e => {
-                                    const val = parseFloat(e.target.value);
-                                    if (!isNaN(val)) {
-                                      const clamped = Math.min(Math.max(val, 0), 10).toFixed(2);
-                                      queueScoreSave(p.id, clamped);
-                                      flushScoreSave(p.id, clamped);
-                                    } else {
-                                      flushScoreSave(p.id, e.target.value);
-                                    }
-                                  }}
-                                  className="w-12 h-7 md:w-16 md:h-9 bg-app-card border border-app-border rounded-lg text-center font-mono text-xs md:text-sm focus:outline-none focus:border-app-accent transition-colors"
-                                  placeholder="0.00"
-                                />
-                              </div>
+                              {isAbsent ? (
+                                <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest text-amber-300">
+                                  {t.board.absentBadge}
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-2 md:gap-3">
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="10"
+                                    step="0.01"
+                                    value={sliderValue}
+                                    onChange={e => queueScoreSave(p.id, e.target.value)}
+                                    onMouseUp={e => flushScoreSave(p.id, e.currentTarget.value)}
+                                    onTouchEnd={e => flushScoreSave(p.id, e.currentTarget.value)}
+                                    onBlur={e => flushScoreSave(p.id, e.target.value)}
+                                    className="h-2.5 flex-1 cursor-pointer appearance-none rounded-full bg-app-border accent-app-accent"
+                                    aria-label={`${t.board.yourScoreHeader}: ${p.name}`}
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="10"
+                                    step="0.01"
+                                    value={sliderValue}
+                                    onChange={e => queueScoreSave(p.id, e.target.value)}
+                                    onBlur={e => {
+                                      const val = parseFloat(e.target.value);
+                                      if (!isNaN(val)) {
+                                        const clamped = Math.min(Math.max(val, 0), 10).toFixed(2);
+                                        queueScoreSave(p.id, clamped);
+                                        flushScoreSave(p.id, clamped);
+                                      } else {
+                                        flushScoreSave(p.id, e.target.value);
+                                      }
+                                    }}
+                                    className="w-12 h-7 md:w-16 md:h-9 bg-app-card border border-app-border rounded-lg text-center font-mono text-xs md:text-sm focus:outline-none focus:border-app-accent transition-colors"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              )}
                             </td>
-                            {isHost && currentPhaseIndex === 0 && (
+                            {isHost && (
                               <td className="py-1.5 md:py-3 pr-2 md:pr-3 text-center">
-                                <button onClick={() => removeParticipant(p.id)} className="text-app-muted/30 transition-colors p-1 hover:opacity-80" style={{ color: 'var(--color-app-danger)' }} title={t.board.removeParticipant} aria-label={`${t.board.removeParticipant}: ${p.name}`}>
-                                  <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                </button>
+                                {currentPhaseIndex === 0 ? (
+                                  <button onClick={() => removeParticipant(p.id)} className="text-app-muted/30 transition-colors p-1 hover:opacity-80" style={{ color: 'var(--color-app-danger)' }} title={t.board.removeParticipant} aria-label={`${t.board.removeParticipant}: ${p.name}`}>
+                                    <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => toggleParticipantAbsent(p.id)}
+                                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-colors ${
+                                      isAbsent
+                                        ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                        : 'border-amber-300/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                    }`}
+                                    title={isAbsent ? t.board.markPresent : t.board.markAbsent}
+                                    aria-label={`${isAbsent ? t.board.markPresent : t.board.markAbsent}: ${p.name}`}
+                                  >
+                                    {isAbsent ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                                    {isAbsent ? t.board.markPresent : t.board.markAbsent}
+                                  </button>
+                                )}
                               </td>
                             )}
                           </tr>
