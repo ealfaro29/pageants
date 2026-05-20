@@ -1,9 +1,17 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog } from 'lucide-react';
+import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { db } from '../../core/firebase-config.js';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
-import { getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
+import {
+  getDefaultPhaseName,
+  getStoredScoringLanguage,
+  normalizeScoringLanguage,
+  persistScoringLanguage,
+  scoringCopy
+} from './scoringI18n';
 import {
   getScoringThemeStyleVars,
   getStoredScoringAccent,
@@ -12,10 +20,23 @@ import {
   persistScoringTheme
 } from './scoringTheme';
 
+function normalizeJudgeIdentity(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export default function ScoringLanding() {
+  const navigate = useNavigate();
   const [theme, setTheme] = useState(getStoredScoringTheme());
   const [accentColor, setAccentColor] = useState(getStoredScoringAccent());
   const [language, setLanguage] = useState(getStoredScoringLanguage());
+  const [activeRole, setActiveRole] = useState(null);
+  const [hostName, setHostName] = useState('');
+  const [sessionName, setSessionName] = useState('');
+  const [sessionType, setSessionType] = useState('Global');
+  const [judgeName, setJudgeName] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const t = scoringCopy[language];
 
   const accents = [
@@ -42,6 +63,109 @@ export default function ScoringLanding() {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
+  };
+
+  const generateSessionId = () => 'MU-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+  const resetRoleFlow = () => {
+    setActiveRole(null);
+    setError('');
+    setSubmitting(false);
+  };
+
+  const handleHostSubmit = async (event) => {
+    event.preventDefault();
+    if (!hostName.trim() || !sessionName.trim()) {
+      setError(t.create.completeFields);
+      return;
+    }
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError('');
+    const nextSessionId = generateSessionId();
+    const sessionData = {
+      id: nextSessionId,
+      name: sessionName.trim(),
+      type: sessionType,
+      language,
+      host: hostName.trim(),
+      currentPhaseIndex: 0,
+      phases: [{ name: getDefaultPhaseName(0, language), cutoff: null, status: 'active' }],
+      participants: [],
+      judges: [hostName.trim()],
+      pendingJudges: [],
+      removedJudges: [],
+      createdAt: Date.now()
+    };
+
+    try {
+      await setDoc(doc(db, 'sessions', nextSessionId), sessionData);
+      navigate(`/session/${nextSessionId}?judge=${encodeURIComponent(hostName.trim())}`);
+    } catch (submitError) {
+      console.error(submitError);
+      setError(t.create.createError);
+      setSubmitting(false);
+    }
+  };
+
+  const handleJudgeSubmit = async (event) => {
+    event.preventDefault();
+    if (!judgeName.trim() || !sessionCode.trim()) return;
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError('');
+    const code = sessionCode.trim().toUpperCase();
+
+    try {
+      const sessionRef = doc(db, 'sessions', code);
+      const sessionSnapshot = await getDoc(sessionRef);
+
+      if (!sessionSnapshot.exists()) {
+        setError(t.join.sessionMissing);
+        setSubmitting(false);
+        return;
+      }
+
+      const sessionData = sessionSnapshot.data();
+      const sessionLanguage = normalizeScoringLanguage(sessionData?.language || language);
+      persistScoringLanguage(sessionLanguage);
+
+      const removedJudge = (sessionData?.removedJudges || []).some(
+        removedName => normalizeJudgeIdentity(removedName) === normalizeJudgeIdentity(judgeName)
+      );
+      if (removedJudge) {
+        setError(scoringCopy[sessionLanguage].join.removedJudge);
+        setSubmitting(false);
+        return;
+      }
+
+      const normalizedJudgeName = judgeName.trim();
+      const isHostJudge = normalizeJudgeIdentity(sessionData?.host) === normalizeJudgeIdentity(normalizedJudgeName);
+      const isApprovedJudge = (sessionData?.judges || []).some(
+        existingJudge => normalizeJudgeIdentity(existingJudge) === normalizeJudgeIdentity(normalizedJudgeName)
+      );
+
+      if (!isHostJudge && !isApprovedJudge) {
+        await updateDoc(sessionRef, {
+          pendingJudges: arrayUnion(normalizedJudgeName)
+        });
+      }
+
+      navigate(`/session/${code}?judge=${encodeURIComponent(normalizedJudgeName)}`);
+    } catch (submitError) {
+      console.error(submitError);
+      setError(t.join.connectionError);
+      setSubmitting(false);
+    }
+  };
+
+  const handleSpectatorSubmit = (event) => {
+    event.preventDefault();
+    if (!sessionCode.trim()) return;
+    const code = sessionCode.trim().toUpperCase();
+    navigate(`/session/${encodeURIComponent(code)}/results`);
   };
 
   return (
@@ -131,39 +255,139 @@ export default function ScoringLanding() {
               <p className="text-sm text-app-muted/80 mt-2">{t.landing.workflowSubtitle}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Link
-                to="/create"
-                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              <button
+                type="button"
+                onClick={() => { setActiveRole('host'); setError(''); }}
+                className="text-left rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
               >
                 <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
                   <UserCog className="w-5 h-5" />
                 </span>
                 <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleHost}</p>
                 <p className="text-xs text-app-muted/80 mt-1">{t.landing.createDescription}</p>
-              </Link>
+              </button>
 
-              <Link
-                to="/join"
-                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              <button
+                type="button"
+                onClick={() => { setActiveRole('judge'); setError(''); }}
+                className="text-left rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
               >
                 <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
                   <Users className="w-5 h-5" />
                 </span>
                 <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleJudge}</p>
                 <p className="text-xs text-app-muted/80 mt-1">{t.landing.joinDescription}</p>
-              </Link>
+              </button>
 
-              <Link
-                to="/results"
-                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              <button
+                type="button"
+                onClick={() => { setActiveRole('spectator'); setError(''); }}
+                className="text-left rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
               >
                 <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
                   <Eye className="w-5 h-5" />
                 </span>
                 <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleSpectator}</p>
                 <p className="text-xs text-app-muted/80 mt-1">{t.landing.liveResultsDescription}</p>
-              </Link>
+              </button>
             </div>
+
+            {activeRole && (
+              <div className="mt-4 rounded-2xl border border-app-border/70 bg-app-card/35 p-4 md:p-5">
+                {activeRole === 'host' && (
+                  <form onSubmit={handleHostSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      value={hostName}
+                      onChange={event => { setHostName(event.target.value); setError(''); }}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+                      placeholder={t.create.hostPlaceholder}
+                      required
+                    />
+                    <input
+                      type="text"
+                      value={sessionName}
+                      onChange={event => { setSessionName(event.target.value); setError(''); }}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+                      placeholder={t.create.sessionNamePlaceholder}
+                      required
+                    />
+                    <select
+                      value={sessionType}
+                      onChange={event => setSessionType(event.target.value)}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+                    >
+                      <option value="Global">{t.create.globalOption}</option>
+                      <option value="Nacional">{t.create.nationalOption}</option>
+                    </select>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+                        {t.landing.workflowBack}
+                      </button>
+                      <button type="submit" disabled={submitting} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.create.submitBusy}</> : t.create.submitIdle}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {activeRole === 'judge' && (
+                  <form onSubmit={handleJudgeSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      value={judgeName}
+                      onChange={event => { setJudgeName(event.target.value); setError(''); }}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+                      placeholder={t.join.judgeNamePlaceholder}
+                      required
+                    />
+                    <input
+                      type="text"
+                      value={sessionCode}
+                      onChange={event => { setSessionCode(event.target.value); setError(''); }}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest"
+                      placeholder={t.join.sessionCodePlaceholder}
+                      required
+                    />
+                    <div className="flex items-center gap-2 pt-1">
+                      <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+                        {t.landing.workflowBack}
+                      </button>
+                      <button type="submit" disabled={submitting} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.join.submitBusy}</> : t.join.submitIdle}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {activeRole === 'spectator' && (
+                  <form onSubmit={handleSpectatorSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      value={sessionCode}
+                      onChange={event => { setSessionCode(event.target.value); setError(''); }}
+                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest"
+                      placeholder={t.resultsAccess.sessionCodePlaceholder}
+                      required
+                    />
+                    <div className="flex items-center gap-2 pt-1">
+                      <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+                        {t.landing.workflowBack}
+                      </button>
+                      <button type="submit" className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+                        {t.resultsAccess.submitIdle}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {error && (
+                  <div className="mt-3 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300 text-center">
+                    {error}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </motion.section>
       </motion.main>
