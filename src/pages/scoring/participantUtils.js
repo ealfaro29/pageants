@@ -25,8 +25,9 @@ function buildCountMap(participants = []) {
 export function buildNumberedParticipant(item, existingParticipants = [], fallbackType = 'country') {
   const baseName = getBaseParticipantName(item?.name);
   const counts = buildCountMap(existingParticipants);
-  const nextIndex = (counts.get(baseName) || 0) + 1;
-  const numberedName = `${baseName} (${nextIndex})`;
+  const existingCount = counts.get(baseName) || 0;
+  const nextIndex = existingCount + 1;
+  const numberedName = existingCount > 0 ? `${baseName} (${nextIndex})` : baseName;
   const seed = `${item?.id || slugify(baseName) || 'participant'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
   return {

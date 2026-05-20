@@ -146,6 +146,12 @@ export default function ParticipantSetup({ session }) {
               <div className="relative">
                 <input 
                   type="text" value={queryCountry} onChange={e => setQueryCountry(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && countryResults.length === 1) {
+                      e.preventDefault();
+                      handleAddGlobal(countryResults[0]);
+                    }
+                  }}
                   placeholder={t.countrySearchPlaceholder}
                   className="scoring-input w-full rounded-xl h-12 pl-12 pr-4 text-sm"
                 />
@@ -197,6 +203,14 @@ export default function ParticipantSetup({ session }) {
                   <div className="relative">
                     <input 
                       type="text" value={queryCountry} onChange={e => setQueryCountry(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && countryResults.length === 1) {
+                          e.preventDefault();
+                          setSelectedParentCountry(countryResults[0]);
+                          setQueryCountry('');
+                          setCountryResults([]);
+                        }
+                      }}
                       placeholder={t.hostCountryPlaceholder}
                       className="scoring-input w-full rounded-xl h-12 pl-12 pr-4 text-sm"
                     />
