@@ -58,7 +58,9 @@ export const scoringCopy = {
       createTitle: 'Crear sesión',
       createDescription: 'Configura un tablero como anfitrión.',
       joinTitle: 'Unirse como juez',
-      joinDescription: 'Ingresa el código para puntuar en vivo.'
+      joinDescription: 'Ingresa el código para puntuar en vivo.',
+      liveResultsTitle: 'Ver resultados en vivo',
+      liveResultsDescription: 'Consulta fases cerradas con el código de sesión.'
     },
     create: {
       title: 'Nueva sesión',
@@ -87,6 +89,13 @@ export const scoringCopy = {
       sessionMissing: 'La sesión no existe. Revisa el código e intenta de nuevo.',
       connectionError: 'Error de conexión con la base de datos.',
       removedJudge: 'Fuiste expulsado de esta sesión y no puedes volver a entrar con ese nombre.'
+    },
+    resultsAccess: {
+      title: 'Resultados en vivo',
+      subtitle: 'Ingresa el código de sesión para ver los resultados públicos.',
+      sessionCodeLabel: 'Código de sesión',
+      sessionCodePlaceholder: 'MU-XXXXX',
+      submitIdle: 'Ver resultados'
     },
     board: {
       judgeSingular: 'juez',
@@ -232,7 +241,9 @@ export const scoringCopy = {
       createTitle: 'Create Session',
       createDescription: 'Set up a board as the host.',
       joinTitle: 'Join as Judge',
-      joinDescription: 'Enter the code to score live.'
+      joinDescription: 'Enter the code to score live.',
+      liveResultsTitle: 'View live results',
+      liveResultsDescription: 'Check closed phases with a session code.'
     },
     create: {
       title: 'New Session',
@@ -261,6 +272,13 @@ export const scoringCopy = {
       sessionMissing: 'This session does not exist. Check the code and try again.',
       connectionError: 'Database connection error.',
       removedJudge: 'You were removed from this session and cannot rejoin with that name.'
+    },
+    resultsAccess: {
+      title: 'Live results',
+      subtitle: 'Enter the session code to view public results.',
+      sessionCodeLabel: 'Session Code',
+      sessionCodePlaceholder: 'MU-XXXXX',
+      submitIdle: 'View results'
     },
     board: {
       judgeSingular: 'judge',

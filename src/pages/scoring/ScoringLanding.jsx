@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Plus, LogIn, Crown, Sun, Moon, ArrowRight, ShieldCheck, Users } from 'lucide-react';
+import { Plus, LogIn, Crown, Sun, Moon, ArrowRight, ShieldCheck, Users, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
@@ -117,7 +117,7 @@ export default function ScoringLanding() {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
           <motion.div variants={itemVariants}>
             <Link
               to="/create"
@@ -163,6 +163,31 @@ export default function ScoringLanding() {
                 </h2>
                 <p className="text-sm text-app-muted leading-relaxed max-w-sm">
                   {t.landing.joinDescription}
+                </p>
+              </div>
+            </Link>
+          </motion.div>
+
+          <motion.div variants={itemVariants}>
+            <Link
+              to="/results"
+              className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                <Eye className="w-40 h-40 text-app-text" />
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-app-accent/10 border border-app-accent/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+                <Eye className="w-7 h-7 text-app-accent" />
+              </div>
+
+              <div className="mt-auto space-y-3">
+                <h2 className="text-3xl font-bold text-app-text flex items-center gap-3">
+                  {t.landing.liveResultsTitle}
+                  <ArrowRight className="w-6 h-6 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                </h2>
+                <p className="text-sm text-app-muted leading-relaxed max-w-sm">
+                  {t.landing.liveResultsDescription}
                 </p>
               </div>
             </Link>
