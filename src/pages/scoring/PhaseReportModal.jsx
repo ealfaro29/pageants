@@ -45,6 +45,7 @@ export default function PhaseReportModal({
   const phaseKey = selectedPhaseIdx >= 0 ? `phase_${selectedPhaseIdx}` : null;
   const phaseScores = phaseKey ? (scores[phaseKey] || {}) : {};
   const rankedParticipants = rankParticipantsByPhaseScores(participants, phaseScores);
+  const totalPossibleVotes = visiblePhases.length * judges.length;
   const overallResults = allParticipants
     .map(participant => {
       const phaseBreakdown = visiblePhases.map((phase, idx) => {
@@ -81,7 +82,7 @@ export default function PhaseReportModal({
         phaseBreakdown,
         overallTotal,
         overallVotes,
-        overallAverage: overallVotes > 0 ? overallTotal / overallVotes : 0
+        overallAverage: totalPossibleVotes > 0 ? overallTotal / totalPossibleVotes : 0
       };
     })
     .sort((a, b) => (

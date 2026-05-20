@@ -195,6 +195,7 @@ export default function PublicResults() {
     };
 
     const visible = normalizedPhases.slice(0, safePhaseIndex + 1);
+    const totalPossibleVotes = visible.length * judgesList.length;
     const overall = allParticipants
       .map(participant => {
         const phaseBreakdown = visible.map((phase, idx) => {
@@ -218,7 +219,7 @@ export default function PublicResults() {
           phaseBreakdown,
           overallTotal,
           overallVotes,
-          overallAverage: overallVotes > 0 ? overallTotal / overallVotes : 0
+          overallAverage: totalPossibleVotes > 0 ? overallTotal / totalPossibleVotes : 0
         };
       })
       .sort((a, b) => b.overallTotal - a.overallTotal || b.overallAverage - a.overallAverage || a.name.localeCompare(b.name));
