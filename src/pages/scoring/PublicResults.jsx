@@ -293,6 +293,11 @@ export default function PublicResults() {
   const isWinnerView = selectedView === WINNER_VIEW;
   const isOverallView = selectedView === OVERALL_RESULTS_VIEW;
   const winnerOverallResult = winner ? overallResults.find(participant => participant.id === winner.id) : null;
+  const publicJudgeColumns = judges.map((judgeName, idx) => ({
+    judgeName,
+    label: t.board.anonymousJudgeLabel ? t.board.anonymousJudgeLabel(idx) : `Judge ${idx + 1}`,
+    key: `${judgeName}-${idx}`
+  }));
 
   return (
     <div
@@ -316,6 +321,22 @@ export default function PublicResults() {
                 <ExternalLink className="w-4 h-4" />
                 {t.board.openInNewTab || 'Abrir'}
               </a>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-app-border/50 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.publicHostLabel || 'Host'}</p>
+              <p className="text-sm font-semibold text-app-text">{session.host || '-'}</p>
+            </div>
+            <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">
+                {(t.board.publicJudgesLabel || 'Judges')} ({judges.length})
+              </p>
+              {judges.length > 0 ? (
+                <p className="text-sm text-app-text break-words">{judges.join(' · ')}</p>
+              ) : (
+                <p className="text-sm text-app-muted/60">-</p>
+              )}
             </div>
           </div>
         </header>
@@ -436,8 +457,8 @@ export default function PublicResults() {
                     <tr className="bg-app-border/30 border-b border-app-border text-xs uppercase tracking-widest text-app-muted/70">
                       <th className="px-4 py-3 text-center w-10 font-semibold">#</th>
                       <th className="px-4 py-3 font-semibold">{t.board.contestant}</th>
-                      {judges.map(judge => (
-                        <th key={judge} className="px-4 py-3 text-center font-semibold whitespace-nowrap">{judge}</th>
+                      {publicJudgeColumns.map(column => (
+                        <th key={column.key} className="px-4 py-3 text-center font-semibold whitespace-nowrap">{column.label}</th>
                       ))}
                       <th className="px-4 py-3 text-center font-bold text-app-text bg-app-border/30">{t.board.total}</th>
                       <th className="px-4 py-3 text-center font-bold text-app-text bg-app-border/50">{t.board.average}</th>
@@ -446,7 +467,7 @@ export default function PublicResults() {
                   <tbody className="divide-y divide-app-border/70">
                     {rankedParticipants.map((participant, idx) => {
                       const participantScores = selectedPhaseScores[participant.id] || {};
-                      const values = judges.map(judge => participantScores[judge]).filter(value => value !== null && value !== undefined);
+                      const values = publicJudgeColumns.map(column => participantScores[column.judgeName]).filter(value => value !== null && value !== undefined);
                       const total = values.reduce((sum, value) => sum + value, 0);
                       const average = values.length > 0 ? total / values.length : 0;
                       const isQualified = qualifiedIds.has(participant.id);
@@ -456,7 +477,7 @@ export default function PublicResults() {
                         <Fragment key={participant.id}>
                           {showCutoffLine && (
                             <tr className="bg-red-500/10 border-y border-red-500/30">
-                              <td colSpan={judges.length + 4} className="py-2 px-4 text-[9px] font-bold text-red-100 uppercase tracking-[0.2em] text-center">
+                              <td colSpan={publicJudgeColumns.length + 4} className="py-2 px-4 text-[9px] font-bold text-red-100 uppercase tracking-[0.2em] text-center">
                                 {t.board.cutoffLine}
                               </td>
                             </tr>
@@ -469,9 +490,9 @@ export default function PublicResults() {
                                 <span className={`text-sm font-semibold ${isQualified ? 'text-app-text' : 'text-app-muted'}`}>{participant.name}</span>
                               </div>
                             </td>
-                            {judges.map(judge => (
-                              <td key={`${participant.id}-${judge}`} className="px-4 py-3 text-center text-sm font-mono text-app-muted">
-                                {participantScores[judge] !== undefined && participantScores[judge] !== null ? participantScores[judge].toFixed(2) : '-'}
+                            {publicJudgeColumns.map(column => (
+                              <td key={`${participant.id}-${column.key}`} className="px-4 py-3 text-center text-sm font-mono text-app-muted">
+                                {participantScores[column.judgeName] !== undefined && participantScores[column.judgeName] !== null ? participantScores[column.judgeName].toFixed(2) : '-'}
                               </td>
                             ))}
                             <td className="px-4 py-3 text-center text-sm font-mono font-semibold text-app-text bg-app-border/10">{total.toFixed(2)}</td>
@@ -484,7 +505,7 @@ export default function PublicResults() {
                     })}
                     {selectedPhaseParticipants.length === 0 && (
                       <tr>
-                        <td colSpan={judges.length + 4} className="px-4 py-10 text-center text-app-muted/70 text-sm">
+                        <td colSpan={publicJudgeColumns.length + 4} className="px-4 py-10 text-center text-app-muted/70 text-sm">
                           {t.board.noParticipantsInPhase}
                         </td>
                       </tr>
