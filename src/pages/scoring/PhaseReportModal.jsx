@@ -285,50 +285,65 @@ export default function PhaseReportModal({
                 }
               </h3>
             </div>
-            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.publicHostLabel || 'Host'}</p>
-                <p className="text-sm font-semibold text-app-text">{session?.host || '-'}</p>
+            {!isWinnerView && (
+              <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.publicHostLabel || 'Host'}</p>
+                  <p className="text-sm font-semibold text-app-text">{session?.host || '-'}</p>
+                </div>
+                <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">
+                    {(t.board.publicJudgesLabel || 'Judges')} ({judges.length})
+                  </p>
+                  {judges.length > 0 ? (
+                    <p className="text-sm text-app-text break-words">{judges.join(' · ')}</p>
+                  ) : (
+                    <p className="text-sm text-app-muted/60">-</p>
+                  )}
+                </div>
               </div>
-              <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">
-                  {(t.board.publicJudgesLabel || 'Judges')} ({judges.length})
-                </p>
-                {judges.length > 0 ? (
-                  <p className="text-sm text-app-text break-words">{judges.join(' · ')}</p>
-                ) : (
-                  <p className="text-sm text-app-muted/60">-</p>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Table or Winner Card */}
             {isWinnerView ? (
-              <div className="scoring-winner-stage relative flex min-h-[500px] items-center justify-center overflow-hidden rounded-[2rem] border border-app-accent/20 p-8 text-center">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.05),transparent_18%),radial-gradient(circle_at_80%_15%,var(--color-app-accent-muted),transparent_25%),radial-gradient(circle_at_50%_85%,rgba(255,255,255,0.03),transparent_20%)] opacity-80" />
-                <div className="relative z-10 flex max-w-xl flex-col items-center">
-                  <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-app-accent/20 bg-app-accent/10 text-app-accent shadow-[0_0_40px_var(--color-app-accent-muted)] transition-all animate-pulse">
-                    <Crown className="h-12 w-12" />
+              <div className="scoring-winner-stage relative flex min-h-[620px] items-center justify-center overflow-hidden rounded-[2rem] border border-app-accent/25 p-10 text-center">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.08),transparent_22%),radial-gradient(circle_at_80%_18%,var(--color-app-accent-muted),transparent_28%),radial-gradient(circle_at_50%_88%,rgba(255,255,255,0.06),transparent_22%)] opacity-95" />
+                <div className="relative z-10 flex w-full max-w-3xl flex-col items-center">
+                  <div className="mb-7 flex h-28 w-28 items-center justify-center rounded-full border border-app-accent/25 bg-app-accent/15 text-app-accent shadow-[0_0_55px_var(--color-app-accent-muted)]">
+                    <Crown className="h-14 w-14" />
                   </div>
-                  <p className="text-xs uppercase tracking-[0.45em] text-app-accent opacity-70">{t.board.winnerTitle}</p>
-                  <h2 className="mt-4 text-5xl font-black tracking-tight text-app-text md:text-6xl drop-shadow-[0_0_15px_var(--color-app-accent-muted)]">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
-                  <p className="mt-4 text-lg text-app-muted font-medium tracking-wide">{t.board.winnerSubtitle}</p>
+                  <p className="text-xs uppercase tracking-[0.45em] text-app-accent opacity-80">{t.board.winnerTitle}</p>
+                  <h2 className="mt-4 text-5xl font-black tracking-tight text-app-text md:text-7xl drop-shadow-[0_0_18px_var(--color-app-accent-muted)]">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
+                  <p className="mt-4 text-lg text-app-muted font-semibold tracking-wide">{t.board.winnerSubtitle}</p>
                   {winnerResult && (
-                    <div className="mt-12 grid w-full max-w-2xl grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/20">
+                    <div className="mt-10 grid w-full max-w-3xl grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerScore}</p>
-                        <p className="text-4xl font-mono text-app-accent font-black tracking-tighter">{winnerResult.totalAvg.toFixed(2)}</p>
+                        <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerResult.totalAvg.toFixed(2)}</p>
                       </div>
-                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/20">
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerPhaseLabel}</p>
                         <p className="text-base text-app-text tracking-wide font-bold leading-tight uppercase">{winnerPhaseName}</p>
                       </div>
                       {winnerOverallResult && (
-                        <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/20">
+                        <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                           <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallTotal}</p>
-                          <p className="text-4xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallTotal.toFixed(2)}</p>
+                          <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallTotal.toFixed(2)}</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {winnerOverallResult?.phaseBreakdown?.length > 0 && (
+                    <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-accent/20 bg-app-card/55 px-5 py-5 text-left">
+                      <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
+                          <div key={`${phaseResult.phaseName}-${idx}`} className="flex items-center justify-between rounded-lg border border-app-border/50 bg-app-card/30 px-3 py-2">
+                            <span className="text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</span>
+                            <span className="text-sm font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
