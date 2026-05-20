@@ -386,25 +386,44 @@ export default function PublicResults() {
 
           <div className="p-4 md:p-6">
             {isWinnerView ? (
-              <div className="scoring-winner-stage relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-8 text-center">
+              <div className="scoring-winner-stage relative flex min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-8 text-center">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_80%_15%,rgba(251,191,36,0.18),transparent_20%),radial-gradient(circle_at_50%_85%,rgba(255,255,255,0.05),transparent_20%)] opacity-80" />
-                <div className="relative z-10 flex max-w-xl flex-col items-center">
+                <div className="relative z-10 flex w-full max-w-3xl flex-col items-center">
                   <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-amber-200/20 bg-amber-300/10 text-amber-200 shadow-[0_0_30px_rgba(251,191,36,0.2)]">
                     <Crown className="h-10 w-10" />
                   </div>
                   <p className="text-xs uppercase tracking-[0.45em] text-amber-200/70">{t.board.winnerTitle}</p>
                   <h2 className="mt-3 text-4xl font-black tracking-tight text-app-text md:text-5xl">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
                   {winnerOverallResult && (
-                    <div className="mt-8 grid w-full max-w-sm grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerScore}</p>
-                        <p className="mt-2 text-3xl font-mono text-app-text">{winnerOverallResult.overallAverage.toFixed(2)}</p>
+                    <>
+                      <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-border/70 bg-app-card/55 px-5 py-5 text-left">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
+                        <div className="overflow-hidden rounded-xl border border-app-border/60">
+                          <div className="grid grid-cols-[1fr_auto_auto] bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
+                            <div className="px-3 py-2 text-left">{t.board.phaseNamePlaceholder}</div>
+                            <div className="px-3 py-2 text-right">{t.board.total}</div>
+                            <div className="px-3 py-2 text-right">{t.board.average}</div>
+                          </div>
+                          {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
+                            <div key={`${phaseResult.phaseName}-${idx}`} className="grid grid-cols-[1fr_auto_auto] border-t border-app-border/50 bg-app-card/35">
+                              <div className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</div>
+                              <div className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</div>
+                              <div className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? ((phaseResult.voteCount || 0) > 0 ? (phaseResult.total / phaseResult.voteCount).toFixed(2) : '0.00') : '0.00'}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerPhaseLabel}</p>
-                        <p className="mt-2 text-base text-app-text">{winnerPhaseName}</p>
+                      <div className="mt-6 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
+                          <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.overallAverage}</p>
+                          <p className="mt-2 text-3xl font-mono text-app-text">{winnerOverallResult.overallAverage.toFixed(2)}</p>
+                        </div>
+                        <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
+                          <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.overallTotal}</p>
+                          <p className="mt-2 text-3xl font-mono text-app-text">{winnerOverallResult.overallTotal.toFixed(2)}</p>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
