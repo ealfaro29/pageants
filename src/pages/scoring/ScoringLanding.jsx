@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2 } from 'lucide-react';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
@@ -37,6 +37,7 @@ export default function ScoringLanding() {
   const [sessionCode, setSessionCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [mobileSection, setMobileSection] = useState('home');
   const t = scoringCopy[language];
 
   const accents = [
@@ -180,7 +181,7 @@ export default function ScoringLanding() {
       <motion.nav 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="w-full max-w-7xl px-6 py-6 flex flex-wrap justify-between items-center gap-4 z-20"
+        className="hidden md:flex w-full max-w-7xl px-6 py-6 flex-wrap justify-between items-center gap-4 z-20"
       >
         <Link to="/" className="flex items-center gap-2 no-underline group">
           <Crown className="w-6 h-6 text-app-accent transition-transform group-hover:scale-110" />
@@ -222,7 +223,7 @@ export default function ScoringLanding() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="flex-grow flex flex-col items-center justify-center w-full max-w-6xl px-6 pb-20 z-10"
+        className="hidden md:flex flex-grow flex-col items-center justify-center w-full max-w-6xl px-6 pb-20 z-10"
       >
         <motion.div variants={itemVariants} className="text-center mb-16 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-app-accent/10 border border-app-accent/20 text-[10px] font-bold tracking-widest text-app-accent uppercase mb-4">
@@ -392,10 +393,142 @@ export default function ScoringLanding() {
         </motion.section>
       </motion.main>
 
+      <div className="md:hidden w-full min-h-screen flex flex-col pb-20">
+        <header className="px-4 pt-4 pb-3 border-b border-app-border/50 bg-app-card/50 backdrop-blur-md">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-app-muted/70">Scoring System</p>
+              <h1 className="text-lg font-black tracking-tight truncate">{t.landing.title}</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <ScoringLanguageToggle language={language} label={t.languageLabel} onChange={setLanguage} />
+              <button onClick={() => {
+                const newTheme = theme === 'dark' ? 'light' : 'dark';
+                setTheme(newTheme);
+                persistScoringTheme(newTheme);
+              }} className="w-9 h-9 flex items-center justify-center bg-app-card/60 border border-app-border/50 rounded-full transition-all text-app-muted">
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-app-accent" />}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 py-4">
+          {mobileSection === 'home' && (
+            <section className="scoring-panel rounded-2xl p-4 space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-app-accent/10 border border-app-accent/20 text-[10px] font-bold tracking-widest text-app-accent uppercase">
+                <ShieldCheck className="w-3 h-3" />
+                Official Scoring System
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">{t.landing.mobileWelcomeTitle}</h2>
+              <p className="text-sm text-app-muted/85 leading-relaxed">{t.landing.mobileWelcomeBody}</p>
+              <div className="grid grid-cols-1 gap-2">
+                <button type="button" onClick={() => setMobileSection('host')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
+                  <p className="text-sm font-bold">{t.landing.roleHost}</p>
+                  <p className="text-xs text-app-muted/80 mt-1">{t.landing.createDescription}</p>
+                </button>
+                <button type="button" onClick={() => setMobileSection('judge')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
+                  <p className="text-sm font-bold">{t.landing.roleJudge}</p>
+                  <p className="text-xs text-app-muted/80 mt-1">{t.landing.joinDescription}</p>
+                </button>
+                <button type="button" onClick={() => setMobileSection('spectator')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
+                  <p className="text-sm font-bold">{t.landing.roleSpectator}</p>
+                  <p className="text-xs text-app-muted/80 mt-1">{t.landing.liveResultsDescription}</p>
+                </button>
+              </div>
+            </section>
+          )}
+
+          {mobileSection === 'host' && (
+            <section className="scoring-panel rounded-2xl p-4">
+              <h3 className="text-lg font-black mb-3">{t.landing.roleHost}</h3>
+              <form onSubmit={handleHostSubmit} className="space-y-3">
+                <input type="text" value={hostName} onChange={event => { setHostName(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm" placeholder={t.create.hostPlaceholder} required />
+                <input type="text" value={sessionName} onChange={event => { setSessionName(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm" placeholder={t.create.sessionNamePlaceholder} required />
+                <select value={sessionType} onChange={event => setSessionType(event.target.value)} className="scoring-input w-full rounded-lg h-11 px-3 text-sm">
+                  <option value="Global">{t.create.globalOption}</option>
+                  <option value="Nacional">{t.create.nationalOption}</option>
+                </select>
+                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.create.submitBusy}</> : t.create.submitIdle}
+                </button>
+              </form>
+            </section>
+          )}
+
+          {mobileSection === 'judge' && (
+            <section className="scoring-panel rounded-2xl p-4">
+              <h3 className="text-lg font-black mb-3">{t.landing.roleJudge}</h3>
+              <form onSubmit={handleJudgeSubmit} className="space-y-3">
+                <input type="text" value={judgeName} onChange={event => { setJudgeName(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm" placeholder={t.join.judgeNamePlaceholder} required />
+                <input type="text" value={sessionCode} onChange={event => { setSessionCode(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.join.sessionCodePlaceholder} required />
+                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.join.submitBusy}</> : t.join.submitIdle}
+                </button>
+              </form>
+            </section>
+          )}
+
+          {mobileSection === 'spectator' && (
+            <section className="scoring-panel rounded-2xl p-4">
+              <h3 className="text-lg font-black mb-3">{t.landing.roleSpectator}</h3>
+              <form onSubmit={handleSpectatorSubmit} className="space-y-3">
+                <input type="text" value={sessionCode} onChange={event => { setSessionCode(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.resultsAccess.sessionCodePlaceholder} required />
+                <button type="submit" className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest">
+                  {t.resultsAccess.submitIdle}
+                </button>
+              </form>
+            </section>
+          )}
+
+          {mobileSection === 'manual' && (
+            <section className="scoring-panel rounded-2xl p-4 space-y-3">
+              <h3 className="text-lg font-black">{t.landing.howToButton}</h3>
+              <p className="text-sm text-app-muted/85">Open the full visual guide with real screenshots and step-by-step instructions.</p>
+              <Link to="/manual" className="scoring-btn-secondary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest no-underline inline-flex items-center justify-center">
+                {t.landing.howToButton}
+              </Link>
+            </section>
+          )}
+
+          {error && (
+            <div className="mt-3 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300 text-center">
+              {error}
+            </div>
+          )}
+        </main>
+
+        <nav className="fixed bottom-0 left-0 right-0 border-t border-app-border/60 bg-app-card/95 backdrop-blur-lg px-2 py-2 z-30">
+          <div className="grid grid-cols-5 gap-1">
+            {[
+              { key: 'home', label: t.landing.mobileHome, icon: House },
+              { key: 'host', label: t.landing.mobileHost, icon: UserCog },
+              { key: 'judge', label: t.landing.mobileJudge, icon: Users },
+              { key: 'spectator', label: t.landing.mobileSpectator, icon: Eye },
+              { key: 'manual', label: t.landing.mobileManual, icon: ClipboardList }
+            ].map(item => {
+              const Icon = item.icon;
+              const active = mobileSection === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setMobileSection(item.key)}
+                  className={`rounded-lg py-2 px-1 flex flex-col items-center gap-1 transition-colors ${active ? 'bg-app-accent/12 text-app-accent' : 'text-app-muted/70'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
+
       <motion.footer 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="w-full py-10 text-center border-t border-app-border/20 z-10"
+        className="hidden md:block w-full py-10 text-center border-t border-app-border/20 z-10"
       >
         <p className="text-[12px] text-app-muted/40 font-medium tracking-wide">
           &copy; {new Date().getFullYear()} PAGEANTS APP &bull; {t.footerByLabel.toUpperCase()}{' '}
