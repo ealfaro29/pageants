@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './core/firebase-config.js';
 import Header from './components/Header';
@@ -702,7 +702,9 @@ function App() {
     const { pathname } = useLocation();
 
     // Dynamically change favicon based on route
-    useFavicon(pathname.startsWith('/session') ? FAVICONS.CROWN : FAVICONS.HEEL);
+    useFavicon(pathname === '/' || pathname.startsWith('/session') || pathname === '/create' || pathname === '/join'
+        ? FAVICONS.CROWN
+        : FAVICONS.HEEL);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -721,15 +723,23 @@ function App() {
 
     return (
         <Routes>
-            {/* Rutas Públicas (El Scoring System) — deben ir ANTES del wildcard */}
-            <Route path="/session" element={<ScoringLanding />} />
-            <Route path="/session/create" element={<CreateSession />} />
-            <Route path="/session/join" element={<JoinSession />} />
+            {/* Rutas Públicas (Scoring System) */}
+            <Route path="/" element={<ScoringLanding />} />
+            <Route path="/create" element={<CreateSession />} />
+            <Route path="/join" element={<JoinSession />} />
             <Route path="/session/:sessionId" element={<SessionBoard />} />
             <Route path="/session/:sessionId/results" element={<PublicResults />} />
-            
-            {/* Rutas Privadas (El app original) — wildcard al final */}
-            <Route path="/*" element={user ? <Dashboard user={user} /> : <Login />} />
+
+            {/* Compatibilidad de rutas antiguas de scoring */}
+            <Route path="/session" element={<Navigate to="/" replace />} />
+            <Route path="/session/create" element={<Navigate to="/create" replace />} />
+            <Route path="/session/join" element={<Navigate to="/join" replace />} />
+
+            {/* Catálogo */}
+            <Route path="/catalog/*" element={user ? <Dashboard user={user} /> : <Login />} />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/catalog" replace />} />
         </Routes>
     );
 }

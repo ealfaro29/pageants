@@ -120,7 +120,7 @@ export default function ScoringLanding() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
           <motion.div variants={itemVariants}>
             <Link
-              to="/session/create"
+              to="/create"
               className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
@@ -145,7 +145,7 @@ export default function ScoringLanding() {
 
           <motion.div variants={itemVariants}>
             <Link
-              to="/session/join"
+              to="/join"
               className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">

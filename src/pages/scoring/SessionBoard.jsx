@@ -236,7 +236,7 @@ export default function SessionBoard() {
 
   // Session + scores listener
   useEffect(() => {
-    if (!sessionId || !judgeName) { if (!judgeName) navigate('/session/join'); return; }
+    if (!sessionId || !judgeName) { if (!judgeName) navigate('/join'); return; }
     const unsubS = onSnapshot(doc(db, "sessions", sessionId), snap => {
       if (!snap.exists()) return;
 
@@ -249,7 +249,7 @@ export default function SessionBoard() {
       setSession(nextSession);
 
       if (isRemovedJudge) {
-        navigate(`/session/join?code=${encodeURIComponent(sessionId)}&removed=1`, { replace: true });
+        navigate(`/join?code=${encodeURIComponent(sessionId)}&removed=1`, { replace: true });
         return;
       }
 
@@ -816,7 +816,7 @@ export default function SessionBoard() {
           <p className="text-sm text-app-muted/80 mb-6">{t.board.removedJudgeMessage}</p>
           <button
             type="button"
-            onClick={() => navigate(`/session/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
+            onClick={() => navigate(`/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
             className="scoring-btn-primary h-12 px-5 rounded-lg text-sm font-bold uppercase tracking-widest inline-flex items-center justify-center"
           >
             {t.board.backToJoin}
@@ -843,7 +843,7 @@ export default function SessionBoard() {
           </p>
           <button
             type="button"
-            onClick={() => navigate(`/session/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
+            onClick={() => navigate(`/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
             className="scoring-btn-secondary h-12 px-5 rounded-lg text-sm font-bold uppercase tracking-widest inline-flex items-center justify-center"
           >
             {t.board.backToJoin}
@@ -903,7 +903,7 @@ export default function SessionBoard() {
             </button>
           </div>
           <div className="h-4 w-px bg-app-border/50 mx-1" />
-          <button onClick={() => { localStorage.removeItem('judgeName'); navigate('/session'); }} className="scoring-btn-icon p-1.5 rounded-full text-app-danger hover:bg-app-danger/10" title={t.board.exitSession} aria-label={t.board.exitSession}>
+          <button onClick={() => { localStorage.removeItem('judgeName'); navigate('/'); }} className="scoring-btn-icon p-1.5 rounded-full text-app-danger hover:bg-app-danger/10" title={t.board.exitSession} aria-label={t.board.exitSession}>
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -1398,7 +1398,7 @@ export default function SessionBoard() {
               )}
 
               <button 
-                onClick={() => { localStorage.removeItem('judgeName'); navigate('/session'); }}
+                onClick={() => { localStorage.removeItem('judgeName'); navigate('/'); }}
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-xl border border-app-danger/20 bg-app-danger/5 text-app-danger text-sm font-bold uppercase tracking-widest"
               >
                 <LogOut className="w-4 h-4" />

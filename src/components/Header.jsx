@@ -119,7 +119,7 @@ export default function Header({ activeTab, setActiveTab }) {
                 <button onClick={() => setIsTicketOpen(true)} className="w-10 h-10 flex items-center justify-center bg-[var(--card-lighter)] text-[var(--gold2)] rounded-full border border-transparent hover:border-[var(--border)] hover:scale-110 transition-all text-xl" aria-label="Copy ticket names" title="Ticket Names">
                     <Ticket className="w-5 h-5" />
                 </button>
-                <Link to="/session" className="w-10 h-10 flex items-center justify-center bg-[var(--card-lighter)] text-[var(--gold2)] rounded-full border border-transparent hover:border-[var(--border)] hover:scale-110 transition-all text-xl" aria-label="Open Scoring Sessions" title="Scoring Sessions">
+                <Link to="/" className="w-10 h-10 flex items-center justify-center bg-[var(--card-lighter)] text-[var(--gold2)] rounded-full border border-transparent hover:border-[var(--border)] hover:scale-110 transition-all text-xl" aria-label="Open Scoring Sessions" title="Scoring Sessions">
                     <Trophy className="w-5 h-5" />
                 </Link>
                 <a href="https://gemini.google.com/gem/45de6cb382e1" target="_blank" rel="noreferrer" className="w-10 h-10 flex items-center justify-center bg-[var(--card-lighter)] text-[var(--gold2)] rounded-full border border-transparent hover:border-[var(--border)] hover:scale-110 transition-all" aria-label="Open Gemini Gem" title="AI Assistant">
@@ -157,7 +157,7 @@ export default function Header({ activeTab, setActiveTab }) {
                         </div>
 
                         <div className="grid gap-1">
-                            <MenuButton icon={Trophy} label="Scoring System" onClick={() => window.location.href = '/session'} />
+                            <MenuButton icon={Trophy} label="Scoring System" onClick={() => window.location.href = '/'} />
                             <MenuButton icon={Settings} label="Admin Dashboard" onClick={() => setIsAdminOpen(true)} color="#666" />
                             <div className="h-[1px] bg-zinc-800 my-2 mx-2" />
                             <MenuButton icon={Clock} label="Time Converter" onClick={() => setIsTimeConverterOpen(true)} />

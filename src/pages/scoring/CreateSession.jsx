@@ -66,7 +66,7 @@ export default function CreateSession() {
       style={getScoringThemeStyleVars(accentColor)}
     >
       <div className="w-full max-w-md h-fit">
-        <Link to="/session" className="inline-flex items-center gap-2 text-xs text-app-muted/80 hover:text-app-text transition-colors mb-6 no-underline uppercase tracking-widest">
+        <Link to="/" className="inline-flex items-center gap-2 text-xs text-app-muted/80 hover:text-app-text transition-colors mb-6 no-underline uppercase tracking-widest">
           <ArrowLeft className="w-4 h-4" /> {t.backToStart}
         </Link>
 
