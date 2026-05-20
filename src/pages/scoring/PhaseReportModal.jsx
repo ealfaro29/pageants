@@ -315,24 +315,6 @@ export default function PhaseReportModal({
                   <p className="text-xs uppercase tracking-[0.45em] text-app-accent opacity-80">{t.board.winnerTitle}</p>
                   <h2 className="mt-4 text-5xl font-black tracking-tight text-app-text md:text-7xl drop-shadow-[0_0_18px_var(--color-app-accent-muted)]">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
                   <p className="mt-4 text-lg text-app-muted font-semibold tracking-wide">{t.board.winnerSubtitle}</p>
-                  {winnerResult && (
-                    <div className="mt-10 grid w-full max-w-3xl grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerScore}</p>
-                        <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerResult.totalAvg.toFixed(2)}</p>
-                      </div>
-                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerPhaseLabel}</p>
-                        <p className="text-base text-app-text tracking-wide font-bold leading-tight uppercase">{winnerPhaseName}</p>
-                      </div>
-                      {winnerOverallResult && (
-                        <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallTotal}</p>
-                          <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallTotal.toFixed(2)}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {winnerOverallResult?.phaseBreakdown?.length > 0 && (
                     <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-accent/20 bg-app-card/55 px-5 py-5 text-left">
                       <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
@@ -340,9 +322,21 @@ export default function PhaseReportModal({
                         {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
                           <div key={`${phaseResult.phaseName}-${idx}`} className="flex items-center justify-between rounded-lg border border-app-border/50 bg-app-card/30 px-3 py-2">
                             <span className="text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</span>
-                            <span className="text-sm font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</span>
+                            <span className="text-sm font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.avg.toFixed(2) : '0.00'}</span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                  {winnerOverallResult && (
+                    <div className="mt-8 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallAverage}</p>
+                        <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallAverage.toFixed(2)}</p>
+                      </div>
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallTotal}</p>
+                        <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallTotal.toFixed(2)}</p>
                       </div>
                     </div>
                   )}
