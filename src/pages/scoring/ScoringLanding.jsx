@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Plus, LogIn, Crown, Sun, Moon, ArrowRight, ShieldCheck, Users, Eye, BookOpen } from 'lucide-react';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
@@ -124,82 +124,48 @@ export default function ScoringLanding() {
           </Link>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
-          <motion.div variants={itemVariants}>
-            <Link
-              to="/create"
-              className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-                <Plus className="w-40 h-40 text-app-text" />
-              </div>
-              
-              <div className="w-14 h-14 rounded-2xl bg-app-accent/10 border border-app-accent/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                <Plus className="w-7 h-7 text-app-accent" />
-              </div>
-              
-              <div className="mt-auto space-y-3">
-                <h2 className="text-3xl font-bold text-app-text flex items-center gap-3">
-                  {t.landing.createTitle}
-                  <ArrowRight className="w-6 h-6 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                </h2>
-                <p className="text-sm text-app-muted leading-relaxed max-w-sm">
-                  {t.landing.createDescription}
-                </p>
-              </div>
-            </Link>
-          </motion.div>
+        <motion.section variants={itemVariants} className="w-full max-w-3xl">
+          <div className="scoring-panel rounded-[2rem] border border-app-border/70 bg-app-card/50 p-6 md:p-8">
+            <div className="text-center mb-6">
+              <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-app-accent/85">{t.landing.workflowTitle}</p>
+              <p className="text-sm text-app-muted/80 mt-2">{t.landing.workflowSubtitle}</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Link
+                to="/create"
+                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              >
+                <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
+                  <UserCog className="w-5 h-5" />
+                </span>
+                <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleHost}</p>
+                <p className="text-xs text-app-muted/80 mt-1">{t.landing.createDescription}</p>
+              </Link>
 
-          <motion.div variants={itemVariants}>
-            <Link
-              to="/join"
-              className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-                <Users className="w-40 h-40 text-app-text" />
-              </div>
+              <Link
+                to="/join"
+                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              >
+                <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
+                  <Users className="w-5 h-5" />
+                </span>
+                <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleJudge}</p>
+                <p className="text-xs text-app-muted/80 mt-1">{t.landing.joinDescription}</p>
+              </Link>
 
-              <div className="w-14 h-14 rounded-2xl bg-app-accent/10 border border-app-accent/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                <LogIn className="w-7 h-7 text-app-accent" />
-              </div>
-              
-              <div className="mt-auto space-y-3">
-                <h2 className="text-3xl font-bold text-app-text flex items-center gap-3">
-                  {t.landing.joinTitle}
-                  <ArrowRight className="w-6 h-6 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                </h2>
-                <p className="text-sm text-app-muted leading-relaxed max-w-sm">
-                  {t.landing.joinDescription}
-                </p>
-              </div>
-            </Link>
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <Link
-              to="/results"
-              className="group relative flex flex-col h-full bg-app-card/40 backdrop-blur-xl border border-app-border/50 rounded-[2rem] p-10 transition-all no-underline hover:border-app-accent/40 hover:bg-app-card/60 overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-                <Eye className="w-40 h-40 text-app-text" />
-              </div>
-
-              <div className="w-14 h-14 rounded-2xl bg-app-accent/10 border border-app-accent/20 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                <Eye className="w-7 h-7 text-app-accent" />
-              </div>
-
-              <div className="mt-auto space-y-3">
-                <h2 className="text-3xl font-bold text-app-text flex items-center gap-3">
-                  {t.landing.liveResultsTitle}
-                  <ArrowRight className="w-6 h-6 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                </h2>
-                <p className="text-sm text-app-muted leading-relaxed max-w-sm">
-                  {t.landing.liveResultsDescription}
-                </p>
-              </div>
-            </Link>
-          </motion.div>
-        </div>
+              <Link
+                to="/results"
+                className="no-underline rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-5 hover:border-app-accent/45 transition-colors"
+              >
+                <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
+                  <Eye className="w-5 h-5" />
+                </span>
+                <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleSpectator}</p>
+                <p className="text-xs text-app-muted/80 mt-1">{t.landing.liveResultsDescription}</p>
+              </Link>
+            </div>
+          </div>
+        </motion.section>
       </motion.main>
 
       <motion.footer 
