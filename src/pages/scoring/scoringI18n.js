@@ -60,7 +60,18 @@ export const scoringCopy = {
       joinTitle: 'Unirse como juez',
       joinDescription: 'Ingresa el código para puntuar en vivo.',
       liveResultsTitle: 'Ver resultados en vivo',
-      liveResultsDescription: 'Consulta fases cerradas con el código de sesión.'
+      liveResultsDescription: 'Consulta fases cerradas con el código de sesión.',
+      howToButton: 'Cómo usar',
+      howToTitle: 'Cómo usar el sistema',
+      howToSteps: [
+        'Host: crea una sesión y comparte el código.',
+        'Jueces: entran con su nombre y código.',
+        'Host: aprueba jueces pendientes en Ajustes.',
+        'Host: agrega participantes y define cuántas clasifican por fase.',
+        'Jueces: puntúan cada fase; host avanza al cerrar.',
+        'Público: ve resultados en vivo con el código en "Ver resultados en vivo".'
+      ],
+      howToClose: 'Cerrar'
     },
     create: {
       title: 'Nueva sesión',
@@ -243,7 +254,18 @@ export const scoringCopy = {
       joinTitle: 'Join as Judge',
       joinDescription: 'Enter the code to score live.',
       liveResultsTitle: 'View live results',
-      liveResultsDescription: 'Check closed phases with a session code.'
+      liveResultsDescription: 'Check closed phases with a session code.',
+      howToButton: 'How to use',
+      howToTitle: 'How to use the system',
+      howToSteps: [
+        'Host: create a session and share the code.',
+        'Judges: join with their name and session code.',
+        'Host: approve pending judges in Settings.',
+        'Host: add participants and set how many advance per phase.',
+        'Judges: score each phase; host advances when ready.',
+        'Audience: view live results with the code in "View live results".'
+      ],
+      howToClose: 'Close'
     },
     create: {
       title: 'New Session',
