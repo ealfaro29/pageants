@@ -243,6 +243,8 @@ export default function SessionBoard() {
       const nextSession = snap.data();
       const isHostJudge = nextSession.host === judgeName;
       const isRemovedJudge = !isHostJudge && judgeListIncludes(nextSession.removedJudges, judgeName);
+      const isApprovedJudge = judgeListIncludes(nextSession.judges, judgeName);
+      const isPendingJudge = judgeListIncludes(nextSession.pendingJudges, judgeName);
 
       setSession(nextSession);
 
@@ -251,9 +253,9 @@ export default function SessionBoard() {
         return;
       }
 
-      if (!judgeRegistrationAttemptedRef.current && !isHostJudge && !judgeListIncludes(nextSession.judges, judgeName)) {
+      if (!judgeRegistrationAttemptedRef.current && !isHostJudge && !isApprovedJudge && !isPendingJudge) {
         judgeRegistrationAttemptedRef.current = true;
-        updateDoc(doc(db, "sessions", sessionId), { judges: arrayUnion(judgeName) }).catch(() => {
+        updateDoc(doc(db, "sessions", sessionId), { pendingJudges: arrayUnion(judgeName) }).catch(() => {
           judgeRegistrationAttemptedRef.current = false;
         });
       }
@@ -266,6 +268,7 @@ export default function SessionBoard() {
 
   // --- Actions ---
   const handleScore = async (participantId, value) => {
+    if (!isJudgeApproved) return;
     if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
     if (value === '' || value === undefined) {
       await deleteScore(participantId);
@@ -280,6 +283,7 @@ export default function SessionBoard() {
   };
 
   const deleteScore = async (participantId) => {
+    if (!isJudgeApproved) return;
     if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
     const phaseKey = `phase_${currentPhaseIndex}`;
     await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
@@ -382,7 +386,40 @@ export default function SessionBoard() {
     const remainingJudges = (session.judges || []).filter(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(judgeToExpel));
     await updateDoc(doc(db, "sessions", session.id), {
       judges: remainingJudges,
+      pendingJudges: (session.pendingJudges || []).filter(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(judgeToExpel)),
       removedJudges: arrayUnion(judgeToExpel)
+    });
+  };
+
+  const approveJudge = async (judgeToApprove) => {
+    if (!judgeToApprove || judgeToApprove === session.host) return;
+
+    const normalizedTarget = normalizeJudgeIdentity(judgeToApprove);
+    const existingJudges = Array.isArray(session.judges) ? session.judges : [];
+    const nextJudges = judgeListIncludes(existingJudges, judgeToApprove)
+      ? existingJudges
+      : [...existingJudges, judgeToApprove];
+    const nextPendingJudges = (session.pendingJudges || []).filter(
+      judge => normalizeJudgeIdentity(judge) !== normalizedTarget
+    );
+
+    await updateDoc(doc(db, "sessions", session.id), {
+      judges: nextJudges,
+      pendingJudges: nextPendingJudges
+    });
+  };
+
+  const rejectJudge = async (judgeToReject) => {
+    if (!judgeToReject || judgeToReject === session.host) return;
+
+    const normalizedTarget = normalizeJudgeIdentity(judgeToReject);
+    const nextPendingJudges = (session.pendingJudges || []).filter(
+      judge => normalizeJudgeIdentity(judge) !== normalizedTarget
+    );
+
+    await updateDoc(doc(db, "sessions", session.id), {
+      pendingJudges: nextPendingJudges,
+      removedJudges: arrayUnion(judgeToReject)
     });
   };
 
@@ -544,6 +581,9 @@ export default function SessionBoard() {
   const isJudgeRemoved = !isHost && judgeListIncludes(session.removedJudges, judgeName);
   const allParticipants = session.participants || [];
   const judges = session.judges || [];
+  const pendingJudgeRequests = session.pendingJudges || [];
+  const isJudgeApproved = isHost || judgeListIncludes(judges, judgeName);
+  const isJudgePendingApproval = !isHost && judgeListIncludes(pendingJudgeRequests, judgeName);
   const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
   const phases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
   const currentPhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), phases.length - 1);
@@ -656,7 +696,7 @@ export default function SessionBoard() {
     const ps = phaseScores[p.id] || {};
     return ps[j] !== undefined && ps[j] !== null;
   })).length;
-  const pendingJudges = Math.max(judges.length - votedJudges, 0);
+  const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
   const canUndoPhase = isHost && (currentPhaseIndex > 0 || isSessionComplete);
@@ -778,6 +818,33 @@ export default function SessionBoard() {
             type="button"
             onClick={() => navigate(`/session/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
             className="scoring-btn-primary h-12 px-5 rounded-lg text-sm font-bold uppercase tracking-widest inline-flex items-center justify-center"
+          >
+            {t.board.backToJoin}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isJudgeApproved) {
+    return (
+      <div
+        className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text font-sans flex items-center justify-center p-4`}
+        style={getScoringThemeStyleVars(accentColor)}
+      >
+        <div className="scoring-panel rounded-2xl max-w-md w-full p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-300 border border-amber-300/20">
+            <UserCheck className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl font-bold text-app-text mb-2">{t.board.pendingJudgeTitle}</h1>
+          <p className="text-sm text-app-muted/80 mb-2">{t.board.pendingJudgeMessage}</p>
+          <p className="text-xs text-app-muted/60 mb-6">
+            {isJudgePendingApproval ? t.board.pendingJudgeStatusPending : t.board.pendingJudgeStatusQueued}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(`/session/join?code=${encodeURIComponent(sessionId)}`, { replace: true })}
+            className="scoring-btn-secondary h-12 px-5 rounded-lg text-sm font-bold uppercase tracking-widest inline-flex items-center justify-center"
           >
             {t.board.backToJoin}
           </button>
@@ -1223,7 +1290,7 @@ export default function SessionBoard() {
                           }`}
                         >
                           {forceAttempted ? (
-                            <><AlertTriangle className="w-4 h-4" /> {isFinalRound ? t.board.forceViewWinner(pendingJudges) : t.board.forceAdvance(pendingJudges)}</>
+                            <><AlertTriangle className="w-4 h-4" /> {isFinalRound ? t.board.forceViewWinner(pendingVotesCount) : t.board.forceAdvance(pendingVotesCount)}</>
                           ) : (
                             <><ChevronRight className="w-4 h-4" /> {isFinalRound ? t.board.viewWinner : t.board.advancePhase}</>
                           )}
@@ -1402,6 +1469,8 @@ export default function SessionBoard() {
         language={currentLanguage}
         onRenameSession={renameSession}
         onExpelJudge={expelJudge}
+        onApproveJudge={approveJudge}
+        onRejectJudge={rejectJudge}
       />
     </div>
   );

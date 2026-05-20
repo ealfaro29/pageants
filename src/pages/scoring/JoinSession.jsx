@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
-import { doc, getDoc } from 'firebase/firestore';
+import { arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, normalizeScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
@@ -41,7 +41,8 @@ export default function JoinSession() {
 
   const handleJoin = async (e) => {
     e.preventDefault();
-    if (!judgeName.trim() || !sessionCode.trim()) return;
+    const normalizedJudgeName = judgeName.trim();
+    if (!normalizedJudgeName || !sessionCode.trim()) return;
     if (submitting) return;
     
     setSubmitting(true);
@@ -64,7 +65,19 @@ export default function JoinSession() {
           setSubmitting(false);
           return;
         }
-        navigate(`/session/${code}?judge=${encodeURIComponent(judgeName.trim())}`);
+
+        const isHostJudge = normalizeJudgeIdentity(sessionData?.host) === normalizeJudgeIdentity(normalizedJudgeName);
+        const isApprovedJudge = (sessionData?.judges || []).some(
+          existingJudge => normalizeJudgeIdentity(existingJudge) === normalizeJudgeIdentity(normalizedJudgeName)
+        );
+
+        if (!isHostJudge && !isApprovedJudge) {
+          await updateDoc(sessionRef, {
+            pendingJudges: arrayUnion(normalizedJudgeName)
+          });
+        }
+
+        navigate(`/session/${code}?judge=${encodeURIComponent(normalizedJudgeName)}`);
       } else {
         setError(t.join.sessionMissing);
         setSubmitting(false);

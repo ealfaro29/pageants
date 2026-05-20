@@ -45,6 +45,8 @@ export default function CreateSession() {
       phases: [{ name: getDefaultPhaseName(0, language), cutoff: null, status: 'active' }],
       participants: [],
       judges: [judgeName.trim()],
+      pendingJudges: [],
+      removedJudges: [],
       createdAt: Date.now()
     };
 

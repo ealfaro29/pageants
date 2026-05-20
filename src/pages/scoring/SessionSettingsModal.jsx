@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Settings2, Save, X, UserRoundMinus } from 'lucide-react';
+import { Settings2, Save, X, UserRoundMinus, UserRoundCheck, ShieldX } from 'lucide-react';
 import { scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent } from './scoringTheme';
 
@@ -9,22 +9,35 @@ export default function SessionSettingsModal({
   session,
   language,
   onRenameSession,
-  onExpelJudge
+  onExpelJudge,
+  onApproveJudge,
+  onRejectJudge
 }) {
+  const normalizeJudgeIdentity = value => String(value || '').trim().toLowerCase();
   const [sessionName, setSessionName] = useState(session?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
   const [expellingJudge, setExpellingJudge] = useState('');
+  const [processingPendingJudge, setProcessingPendingJudge] = useState('');
   const [accentColor] = useState(getStoredScoringAccent());
   const t = scoringCopy[language] || scoringCopy.es;
   const settingsCopy = t.board.settings;
   const judges = Array.isArray(session?.judges) ? session.judges : [];
+  const pendingJudges = Array.isArray(session?.pendingJudges) ? session.pendingJudges : [];
   const guestJudges = judges.filter(judge => judge !== session?.host);
+  const normalizedGuestJudges = guestJudges.map(normalizeJudgeIdentity);
+  const pendingJudgeRequests = pendingJudges.filter(
+    judge => (
+      normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(session?.host)
+      && !normalizedGuestJudges.includes(normalizeJudgeIdentity(judge))
+    )
+  );
 
   useEffect(() => {
     if (isOpen) {
       setSessionName(session?.name || '');
       setIsSavingName(false);
       setExpellingJudge('');
+      setProcessingPendingJudge('');
     }
   }, [isOpen, session?.name]);
 
@@ -50,6 +63,26 @@ export default function SessionSettingsModal({
       await onExpelJudge(judge);
     } finally {
       setExpellingJudge('');
+    }
+  };
+
+  const handleApproveJudge = async (judge) => {
+    if (!judge || processingPendingJudge) return;
+    setProcessingPendingJudge(judge);
+    try {
+      await onApproveJudge(judge);
+    } finally {
+      setProcessingPendingJudge('');
+    }
+  };
+
+  const handleRejectJudge = async (judge) => {
+    if (!judge || processingPendingJudge) return;
+    setProcessingPendingJudge(judge);
+    try {
+      await onRejectJudge(judge);
+    } finally {
+      setProcessingPendingJudge('');
     }
   };
 
@@ -94,6 +127,53 @@ export default function SessionSettingsModal({
               </button>
             </div>
           </form>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-bold tracking-widest text-app-muted/80 uppercase">
+                {settingsCopy.pendingJudgesTitle}
+              </h3>
+              <span className="scoring-badge text-[10px] px-2 py-1 rounded-md">
+                {pendingJudgeRequests.length}
+              </span>
+            </div>
+
+            <div className="border border-app-border rounded-xl overflow-hidden">
+              <div className="divide-y divide-app-border/70 bg-app-card/60">
+                {pendingJudgeRequests.map(judge => (
+                  <div key={judge} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-4">
+                    <p className="text-sm font-medium text-app-text">{judge}</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveJudge(judge)}
+                        disabled={processingPendingJudge === judge}
+                        className="scoring-btn-primary h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                      >
+                        <UserRoundCheck className="w-4 h-4" />
+                        {settingsCopy.approveJudge}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectJudge(judge)}
+                        disabled={processingPendingJudge === judge}
+                        className="scoring-btn-danger h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                      >
+                        <ShieldX className="w-4 h-4" />
+                        {settingsCopy.rejectJudge}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {pendingJudgeRequests.length === 0 && (
+                  <div className="px-4 py-8 text-center text-sm text-app-muted/80">
+                    {settingsCopy.noPendingJudges}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
