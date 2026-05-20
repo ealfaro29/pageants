@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Plus, LogIn, Crown, Sun, Moon, ArrowRight, ShieldCheck, Users, Eye, BookOpen, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, LogIn, Crown, Sun, Moon, ArrowRight, ShieldCheck, Users, Eye, BookOpen } from 'lucide-react';
+import { motion } from 'framer-motion';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
 import {
@@ -16,7 +16,6 @@ export default function ScoringLanding() {
   const [theme, setTheme] = useState(getStoredScoringTheme());
   const [accentColor, setAccentColor] = useState(getStoredScoringAccent());
   const [language, setLanguage] = useState(getStoredScoringLanguage());
-  const [isHowToOpen, setIsHowToOpen] = useState(false);
   const t = scoringCopy[language];
 
   const accents = [
@@ -116,14 +115,13 @@ export default function ScoringLanding() {
           <p className="text-lg md:text-xl text-app-muted/80 max-w-2xl mx-auto font-medium leading-relaxed">
             {t.landing.subtitle}
           </p>
-          <button
-            type="button"
-            onClick={() => setIsHowToOpen(true)}
-            className="mt-3 inline-flex items-center gap-2 rounded-full border border-app-border/70 bg-app-card/40 px-4 py-2 text-xs font-bold uppercase tracking-widest text-app-muted hover:text-app-text hover:border-app-accent/40 transition-colors"
+          <Link
+            to="/manual"
+            className="mt-3 inline-flex items-center gap-2 rounded-full border border-app-border/70 bg-app-card/40 px-4 py-2 text-xs font-bold uppercase tracking-widest text-app-muted hover:text-app-text hover:border-app-accent/40 transition-colors no-underline"
           >
             <BookOpen className="w-3.5 h-3.5" />
             {t.landing.howToButton}
-          </button>
+          </Link>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
@@ -214,117 +212,6 @@ export default function ScoringLanding() {
           <a href="https://discord.com/users/angelmuse_87856" target="_blank" rel="noopener noreferrer" className="text-app-text/60 hover:text-app-accent transition-colors underline decoration-app-border underline-offset-4 font-bold">ANGEL MUSE DOLL</a>
         </p>
       </motion.footer>
-
-      <AnimatePresence>
-        {isHowToOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsHowToOpen(false)}
-              className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            >
-              <div className="scoring-panel w-full max-w-4xl rounded-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-app-border/70 bg-app-card/70">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-app-accent/80">{t.landing.howToKicker}</p>
-                    <h3 className="text-lg font-bold text-app-text mt-1">{t.landing.howToTitle}</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsHowToOpen(false)}
-                    className="scoring-btn-icon p-2 rounded-lg"
-                    aria-label={t.landing.howToClose}
-                    title={t.landing.howToClose}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="px-5 py-5 md:px-6 md:py-6 space-y-6">
-                  <p className="text-sm md:text-base text-app-muted/90">{t.landing.howToLead}</p>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-bold uppercase tracking-[0.22em] text-app-muted/70">{t.landing.howToRolesTitle}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Link
-                        to="/create"
-                        onClick={() => setIsHowToOpen(false)}
-                        className="rounded-xl border border-app-border/70 bg-app-card/40 p-4 no-underline hover:border-app-accent/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent"><Plus className="w-4 h-4" /></span>
-                          <ArrowRight className="w-4 h-4 text-app-muted/70" />
-                        </div>
-                        <p className="mt-3 text-sm font-bold text-app-text">{t.landing.createTitle}</p>
-                        <p className="mt-1 text-xs text-app-muted/80">{t.landing.createDescription}</p>
-                        <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-app-accent">{t.landing.howToHostCta}</p>
-                      </Link>
-
-                      <Link
-                        to="/join"
-                        onClick={() => setIsHowToOpen(false)}
-                        className="rounded-xl border border-app-border/70 bg-app-card/40 p-4 no-underline hover:border-app-accent/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent"><Users className="w-4 h-4" /></span>
-                          <ArrowRight className="w-4 h-4 text-app-muted/70" />
-                        </div>
-                        <p className="mt-3 text-sm font-bold text-app-text">{t.landing.joinTitle}</p>
-                        <p className="mt-1 text-xs text-app-muted/80">{t.landing.joinDescription}</p>
-                        <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-app-accent">{t.landing.howToJudgeCta}</p>
-                      </Link>
-
-                      <Link
-                        to="/results"
-                        onClick={() => setIsHowToOpen(false)}
-                        className="rounded-xl border border-app-border/70 bg-app-card/40 p-4 no-underline hover:border-app-accent/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-app-accent/10 text-app-accent"><Eye className="w-4 h-4" /></span>
-                          <ArrowRight className="w-4 h-4 text-app-muted/70" />
-                        </div>
-                        <p className="mt-3 text-sm font-bold text-app-text">{t.landing.liveResultsTitle}</p>
-                        <p className="mt-1 text-xs text-app-muted/80">{t.landing.liveResultsDescription}</p>
-                        <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-app-accent">{t.landing.howToPublicCta}</p>
-                      </Link>
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-bold uppercase tracking-[0.22em] text-app-muted/70">{t.landing.howToFlowTitle}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {t.landing.howToFlowSteps.map((step, idx) => (
-                        <article key={`${step.title}-${idx}`} className="rounded-xl border border-app-border/70 bg-app-card/35 p-4">
-                          <div className="flex items-start gap-3">
-                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-app-accent/15 text-app-accent text-xs font-bold">{idx + 1}</span>
-                            <div>
-                              <h5 className="text-sm font-semibold text-app-text">{step.title}</h5>
-                              <p className="mt-1 text-xs text-app-muted/80 leading-relaxed">{step.body}</p>
-                            </div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="rounded-xl border border-app-accent/25 bg-app-accent/10 p-4">
-                    <h4 className="text-xs font-bold uppercase tracking-[0.22em] text-app-accent">{t.landing.howToRulesTitle}</h4>
-                    <p className="mt-2 text-sm text-app-text/90">{t.landing.howToRulesBody}</p>
-                  </section>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

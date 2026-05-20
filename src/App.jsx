@@ -20,6 +20,7 @@ import SessionBoard from './pages/scoring/SessionBoard';
 import ScoringLanding from './pages/scoring/ScoringLanding';
 import PublicResults from './pages/scoring/PublicResults';
 import ViewResultsAccess from './pages/scoring/ViewResultsAccess';
+import UserManual from './pages/scoring/UserManual';
 import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
@@ -703,7 +704,7 @@ function App() {
     const { pathname } = useLocation();
 
     // Dynamically change favicon based on route
-    useFavicon(pathname === '/' || pathname.startsWith('/session') || pathname === '/create' || pathname === '/join' || pathname === '/results'
+    useFavicon(pathname === '/' || pathname.startsWith('/session') || pathname === '/create' || pathname === '/join' || pathname === '/results' || pathname === '/manual'
         ? FAVICONS.CROWN
         : FAVICONS.HEEL);
 
@@ -729,6 +730,7 @@ function App() {
             <Route path="/create" element={<CreateSession />} />
             <Route path="/join" element={<JoinSession />} />
             <Route path="/results" element={<ViewResultsAccess />} />
+            <Route path="/manual" element={<UserManual />} />
             <Route path="/session/:sessionId" element={<SessionBoard />} />
             <Route path="/session/:sessionId/results" element={<PublicResults />} />
 
