@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { Copy, Check, Crown, Trophy, ClipboardList, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Copy, Check, Crown, Trophy, ClipboardList, ExternalLink } from 'lucide-react';
 import { db } from '../../core/firebase-config.js';
 import {
   getDefaultPhaseName,
@@ -285,9 +285,6 @@ export default function PublicResults() {
       <div className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text flex items-center justify-center p-6`} style={getScoringThemeStyleVars(accentColor)}>
         <div className="scoring-panel rounded-2xl p-8 text-center max-w-lg">
           <h1 className="text-2xl font-bold mb-2">{t.join.sessionMissing}</h1>
-          <Link to="/session" className="scoring-btn-primary h-12 px-6 rounded-lg inline-flex items-center justify-center text-sm font-bold uppercase tracking-widest no-underline mt-4">
-            {t.backToStart}
-          </Link>
         </div>
       </div>
     );
@@ -311,10 +308,6 @@ export default function PublicResults() {
               <p className="text-xs text-app-muted/70 mt-1">{getSessionTypeLabel(session.type, currentLanguage)}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Link to="/session" className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold no-underline">
-                <ArrowLeft className="w-4 h-4" />
-                {t.backToStart}
-              </Link>
               <button onClick={copyLink} className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
                 {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 {copied ? (t.board.linkCopied || 'Copiado') : (t.board.copyPublicLink || 'Copiar link')}
