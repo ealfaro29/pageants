@@ -18,6 +18,7 @@ import CreateSession from './pages/scoring/CreateSession';
 import JoinSession from './pages/scoring/JoinSession';
 import SessionBoard from './pages/scoring/SessionBoard';
 import ScoringLanding from './pages/scoring/ScoringLanding';
+import PublicResults from './pages/scoring/PublicResults';
 import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
@@ -725,6 +726,7 @@ function App() {
             <Route path="/session/create" element={<CreateSession />} />
             <Route path="/session/join" element={<JoinSession />} />
             <Route path="/session/:sessionId" element={<SessionBoard />} />
+            <Route path="/session/:sessionId/results" element={<PublicResults />} />
             
             {/* Rutas Privadas (El app original) — wildcard al final */}
             <Route path="/*" element={user ? <Dashboard user={user} /> : <Login />} />

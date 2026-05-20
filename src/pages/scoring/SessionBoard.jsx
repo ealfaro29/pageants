@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
-import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX } from 'lucide-react';
+import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
   getCountryDisplayName,
   getDefaultPhaseName,
@@ -128,6 +128,7 @@ export default function SessionBoard() {
   const [session, setSession] = useState(null);
   const [scores, setScores] = useState({});
   const [codeCopied, setCodeCopied] = useState(false);
+  const [resultsLinkCopied, setResultsLinkCopied] = useState(false);
   const [forceAttempted, setForceAttempted] = useState(false);
   const [undoAttempted, setUndoAttempted] = useState(false);
   const [scoreDrafts, setScoreDrafts] = useState({});
@@ -520,6 +521,18 @@ export default function SessionBoard() {
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
+  const getPublicResultsUrl = () => `${window.location.origin}/session/${sessionId}/results`;
+
+  const copyPublicResultsLink = () => {
+    navigator.clipboard.writeText(getPublicResultsUrl());
+    setResultsLinkCopied(true);
+    setTimeout(() => setResultsLinkCopied(false), 2000);
+  };
+
+  const openPublicResults = () => {
+    window.open(getPublicResultsUrl(), '_blank', 'noopener,noreferrer');
+  };
+
   // --- Computed ---
   if (!session) return (
     <div className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text flex items-center justify-center`} style={getScoringThemeStyleVars(accentColor)}>
@@ -789,6 +802,14 @@ export default function SessionBoard() {
         <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
           {isHost && (
             <>
+              <button onClick={openPublicResults} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.openInNewTab} aria-label={t.board.openInNewTab}>
+                <ExternalLink className="w-3 h-3" />
+                {t.board.publicResultsLabel}
+              </button>
+              <button onClick={copyPublicResultsLink} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.copyPublicLink} aria-label={t.board.copyPublicLink}>
+                {resultsLinkCopied ? <Check className="w-3 h-3 text-green-500" /> : <Link2 className="w-3 h-3" />}
+                {resultsLinkCopied ? t.board.linkCopied : t.board.copyPublicLink}
+              </button>
               <button onClick={() => setIsSettingsModalOpen(true)} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium">
                 <Settings2 className="w-3 h-3" />
                 {t.board.settingsButton}
@@ -1276,6 +1297,18 @@ export default function SessionBoard() {
                   </button>
                 </div>
               </div>
+              {isHost && (
+                <div className="flex items-center justify-center gap-2">
+                  <button onClick={copyPublicResultsLink} className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
+                    {resultsLinkCopied ? <Check className="w-4 h-4 text-green-500" /> : <Link2 className="w-4 h-4" />}
+                    {resultsLinkCopied ? t.board.linkCopied : t.board.copyPublicLink}
+                  </button>
+                  <button onClick={openPublicResults} className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
+                    <ExternalLink className="w-4 h-4" />
+                    {t.board.openInNewTab}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="pt-6 space-y-3">
