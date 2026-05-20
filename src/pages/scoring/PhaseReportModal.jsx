@@ -320,18 +320,24 @@ export default function PhaseReportModal({
                     <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-accent/20 bg-app-card/55 px-5 py-5 text-left">
                       <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
                       <div className="overflow-hidden rounded-xl border border-app-border/60">
-                        <div className={`grid ${showTrackTotalAndAverage ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'} bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold`}>
-                          <div className="px-3 py-2 text-left">{t.board.phaseNamePlaceholder}</div>
-                          {showTrackTotalAndAverage && <div className="px-3 py-2 text-right">{t.board.total}</div>}
-                          <div className="px-3 py-2 text-right">{t.board.average}</div>
-                        </div>
-                        {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
-                          <div key={`${phaseResult.phaseName}-${idx}`} className={`grid ${showTrackTotalAndAverage ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'} border-t border-app-border/50 bg-app-card/35`}>
-                            <div className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</div>
-                            {showTrackTotalAndAverage && <div className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</div>}
-                            <div className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.avg.toFixed(2) : '0.00'}</div>
-                          </div>
-                        ))}
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
+                              <th className="px-3 py-2 text-left">Phase</th>
+                              {showTrackTotalAndAverage && <th className="px-3 py-2 text-right">{t.board.total}</th>}
+                              <th className="px-3 py-2 text-right">{t.board.average}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
+                              <tr key={`${phaseResult.phaseName}-${idx}`} className="border-t border-app-border/50 bg-app-card/35">
+                                <td className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName || `Phase ${idx + 1}`}</td>
+                                {showTrackTotalAndAverage && <td className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</td>}
+                                <td className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.avg.toFixed(2) : '0.00'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
