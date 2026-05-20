@@ -285,6 +285,22 @@ export default function PhaseReportModal({
                 }
               </h3>
             </div>
+            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.publicHostLabel || 'Host'}</p>
+                <p className="text-sm font-semibold text-app-text">{session?.host || '-'}</p>
+              </div>
+              <div className="rounded-lg border border-app-border/70 bg-app-card/40 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">
+                  {(t.board.publicJudgesLabel || 'Judges')} ({judges.length})
+                </p>
+                {judges.length > 0 ? (
+                  <p className="text-sm text-app-text break-words">{judges.join(' · ')}</p>
+                ) : (
+                  <p className="text-sm text-app-muted/60">-</p>
+                )}
+              </div>
+            </div>
 
             {/* Table or Winner Card */}
             {isWinnerView ? (
