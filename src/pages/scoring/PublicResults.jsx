@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { Copy, Check, Crown, Trophy, ClipboardList, ExternalLink } from 'lucide-react';
+import { Crown, Trophy, ClipboardList, Sun, Moon } from 'lucide-react';
 import { db } from '../../core/firebase-config.js';
 import {
   getDefaultPhaseName,
@@ -14,7 +14,8 @@ import {
   getScoringBodyBackground,
   getScoringThemeStyleVars,
   getStoredScoringAccent,
-  getStoredScoringTheme
+  getStoredScoringTheme,
+  persistScoringTheme
 } from './scoringTheme';
 
 const OVERALL_RESULTS_VIEW = -2;
@@ -90,8 +91,7 @@ export default function PublicResults() {
   const [session, setSession] = useState(null);
   const [scores, setScores] = useState({});
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [theme] = useState(getStoredScoringTheme());
+  const [theme, setTheme] = useState(getStoredScoringTheme());
   const [accentColor] = useState(getStoredScoringAccent());
   const fallbackLanguage = getStoredScoringLanguage();
   const currentLanguage = normalizeScoringLanguage(session?.language || fallbackLanguage);
@@ -259,20 +259,6 @@ export default function PublicResults() {
     setSelectedView(OVERALL_RESULTS_VIEW);
   }, [session, winner]);
 
-  const publicUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/session/${sessionId}/results`
-    : `/session/${sessionId}/results`;
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (_) {
-      setCopied(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text flex items-center justify-center`} style={getScoringThemeStyleVars(accentColor)}>
@@ -315,14 +301,19 @@ export default function PublicResults() {
               <p className="text-xs text-app-muted/70 mt-1">{getSessionTypeLabel(session.type, currentLanguage)}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={copyLink} className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
-                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                {copied ? (t.board.linkCopied || 'Copiado') : (t.board.copyPublicLink || 'Copiar link')}
+              <button
+                onClick={() => {
+                  const newTheme = theme === 'dark' ? 'light' : 'dark';
+                  setTheme(newTheme);
+                  persistScoringTheme(newTheme);
+                }}
+                className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
+                title={t.board.themeToggle}
+                aria-label={t.board.themeToggle}
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {theme === 'dark' ? 'Light' : 'Dark'}
               </button>
-              <a href={publicUrl} target="_blank" rel="noreferrer" className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold no-underline">
-                <ExternalLink className="w-4 h-4" />
-                {t.board.openInNewTab || 'Abrir'}
-              </a>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-app-border/50 grid grid-cols-1 md:grid-cols-2 gap-3">
