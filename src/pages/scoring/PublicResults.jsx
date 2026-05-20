@@ -123,7 +123,9 @@ export default function PublicResults() {
     currentPhase,
     winner,
     winnerPhaseName,
+    visiblePhaseIndexes,
     visiblePhases,
+    hasCompletedPhases,
     overallResults,
     selectedPhase,
     selectedPhaseParticipants,
@@ -139,7 +141,9 @@ export default function PublicResults() {
         currentPhase: null,
         winner: null,
         winnerPhaseName: '',
+        visiblePhaseIndexes: [],
         visiblePhases: [],
+        hasCompletedPhases: false,
         overallResults: [],
         selectedPhase: null,
         selectedPhaseParticipants: [],
@@ -157,6 +161,9 @@ export default function PublicResults() {
     const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
     const activePhase = normalizedPhases[safePhaseIndex] || getDefaultPhase(currentLanguage);
     const participantMap = new Map(allParticipants.map(participant => [participant.id, participant]));
+    const completedPhaseIndexes = normalizedPhases
+      .map((phase, idx) => (phase.status === 'completed' ? idx : null))
+      .filter(idx => idx !== null);
 
     const getPhaseParticipants = (phaseIdx) => {
       if (phaseIdx < 0) return [];
@@ -194,7 +201,7 @@ export default function PublicResults() {
       return rankParticipantsByPhaseScores(prevParticipants, prevScores).slice(0, prevPhase.cutoff);
     };
 
-    const visible = normalizedPhases.slice(0, safePhaseIndex + 1);
+    const visible = completedPhaseIndexes.map(idx => normalizedPhases[idx]);
     const totalPossibleVotes = visible.length * judgesList.length;
     const overall = allParticipants
       .map(participant => {
@@ -224,10 +231,17 @@ export default function PublicResults() {
       })
       .sort((a, b) => b.overallTotal - a.overallTotal || b.overallAverage - a.overallAverage || a.name.localeCompare(b.name));
 
-    const effectiveSelectedView = typeof selectedView === 'number' && selectedView >= 0 ? selectedView : safePhaseIndex;
-    const phase = normalizedPhases[effectiveSelectedView] || null;
-    const participants = phase ? getPhaseParticipants(effectiveSelectedView) : [];
-    const phaseScores = phase ? (scores[`phase_${effectiveSelectedView}`] || {}) : {};
+    const fallbackSelectedPhaseIndex = completedPhaseIndexes.length > 0
+      ? completedPhaseIndexes[completedPhaseIndexes.length - 1]
+      : null;
+    const effectiveSelectedView = (
+      typeof selectedView === 'number'
+      && selectedView >= 0
+      && completedPhaseIndexes.includes(selectedView)
+    ) ? selectedView : fallbackSelectedPhaseIndex;
+    const phase = effectiveSelectedView !== null ? (normalizedPhases[effectiveSelectedView] || null) : null;
+    const participants = phase && effectiveSelectedView !== null ? getPhaseParticipants(effectiveSelectedView) : [];
+    const phaseScores = phase && effectiveSelectedView !== null ? (scores[`phase_${effectiveSelectedView}`] || {}) : {};
     const ranked = rankParticipantsByPhaseScores(participants, phaseScores);
     const cutoffLimit = phase?.cutoff || ranked.length;
     const qualified = new Set(ranked.slice(0, cutoffLimit).map(participant => participant.id));
@@ -239,7 +253,9 @@ export default function PublicResults() {
       currentPhase: activePhase,
       winner: sessionWinner,
       winnerPhaseName: normalizedPhases[session.winnerPhaseIndex]?.name || activePhase.name,
+      visiblePhaseIndexes: completedPhaseIndexes,
       visiblePhases: visible,
+      hasCompletedPhases: completedPhaseIndexes.length > 0,
       overallResults: overall,
       selectedPhase: phase,
       selectedPhaseParticipants: participants,
@@ -337,23 +353,27 @@ export default function PublicResults() {
         {session.status !== 'completed' && (
           <div className="scoring-panel rounded-2xl p-4 md:p-6 mb-4 md:mb-6">
             <p className="text-sm text-app-muted">{t.board.publicResultsPending || 'Los resultados finales todavía no han sido publicados por el host.'}</p>
+            <p className="text-sm text-app-text mt-1">{t.board.publicJudgesScoring || 'Los jueces están puntuando en este momento.'}</p>
           </div>
         )}
 
         <section className="scoring-panel rounded-2xl overflow-hidden">
           <div className="flex overflow-x-auto border-b border-app-border bg-app-card px-4 py-3 scrollbar-none">
-            {visiblePhases.map((phase, idx) => (
+            {visiblePhases.map((phase, idx) => {
+              const phaseIndex = visiblePhaseIndexes[idx];
+              return (
               <button
                 key={`${phase.name}-${idx}`}
-                onClick={() => setSelectedView(idx)}
+                onClick={() => setSelectedView(phaseIndex)}
                 className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
-                  selectedView === idx ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
+                  selectedView === phaseIndex ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
                 }`}
               >
                 <ClipboardList className="w-3.5 h-3.5 inline mr-1" />
                 {phase.name}
               </button>
-            ))}
+              );
+            })}
             <button
               onClick={() => setSelectedView(OVERALL_RESULTS_VIEW)}
               className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
@@ -377,7 +397,14 @@ export default function PublicResults() {
           </div>
 
           <div className="p-4 md:p-6">
-            {isWinnerView ? (
+            {!hasCompletedPhases && !isWinnerView ? (
+              <div className="rounded-xl border border-app-border/80 bg-app-card/40 px-4 py-12 text-center">
+                <p className="text-sm text-app-muted/90">{t.board.publicCompletedPhasesPending || 'Aún no hay fases cerradas para mostrar.'}</p>
+                {session.status !== 'completed' && (
+                  <p className="text-sm text-app-text mt-2">{t.board.publicJudgesScoring || 'Los jueces están puntuando en este momento.'}</p>
+                )}
+              </div>
+            ) : isWinnerView ? (
               <div className="scoring-winner-stage relative flex min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-8 text-center">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_80%_15%,rgba(251,191,36,0.18),transparent_20%),radial-gradient(circle_at_50%_85%,rgba(255,255,255,0.05),transparent_20%)] opacity-80" />
                 <div className="relative z-10 flex w-full max-w-3xl flex-col items-center">
