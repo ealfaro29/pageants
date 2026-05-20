@@ -63,14 +63,21 @@ export const scoringCopy = {
       liveResultsDescription: 'Consulta fases cerradas con el código de sesión.',
       howToButton: 'Cómo usar',
       howToTitle: 'Cómo usar el sistema',
-      howToSteps: [
-        'Host: crea una sesión y comparte el código.',
-        'Jueces: entran con su nombre y código.',
-        'Host: aprueba jueces pendientes en Ajustes.',
-        'Host: agrega participantes y define cuántas clasifican por fase.',
-        'Jueces: puntúan cada fase; host avanza al cerrar.',
-        'Público: ve resultados en vivo con el código en "Ver resultados en vivo".'
+      howToKicker: 'Guía rápida de operación',
+      howToLead: 'Configura, califica y publica resultados en vivo sin salir de esta app.',
+      howToRolesTitle: 'Elegir rol',
+      howToHostCta: 'Entrar como host',
+      howToJudgeCta: 'Entrar como juez',
+      howToPublicCta: 'Ver resultados',
+      howToFlowTitle: 'Flujo del evento',
+      howToFlowSteps: [
+        { title: 'Host crea sesión', body: 'Define nombre del certamen y tipo de competencia.' },
+        { title: 'Jueces solicitan acceso', body: 'Cada juez entra con nombre y código de sesión.' },
+        { title: 'Host aprueba jueces', body: 'Gestiona aprobaciones y rechazos desde Ajustes.' },
+        { title: 'Se puntúa por fases', body: 'El host define cutoff y avanza cuando la fase cierra.' }
       ],
+      howToRulesTitle: 'Qué ve el público',
+      howToRulesBody: 'Resultados públicos solo muestran fases ya cerradas por el host. La fase en curso permanece oculta.',
       howToClose: 'Cerrar'
     },
     create: {
@@ -257,14 +264,21 @@ export const scoringCopy = {
       liveResultsDescription: 'Check closed phases with a session code.',
       howToButton: 'How to use',
       howToTitle: 'How to use the system',
-      howToSteps: [
-        'Host: create a session and share the code.',
-        'Judges: join with their name and session code.',
-        'Host: approve pending judges in Settings.',
-        'Host: add participants and set how many advance per phase.',
-        'Judges: score each phase; host advances when ready.',
-        'Audience: view live results with the code in "View live results".'
+      howToKicker: 'Quick operation guide',
+      howToLead: 'Set up, score, and publish live results without leaving this app.',
+      howToRolesTitle: 'Choose a role',
+      howToHostCta: 'Enter as host',
+      howToJudgeCta: 'Enter as judge',
+      howToPublicCta: 'View results',
+      howToFlowTitle: 'Event flow',
+      howToFlowSteps: [
+        { title: 'Host creates session', body: 'Set pageant name and competition type.' },
+        { title: 'Judges request access', body: 'Each judge joins with name and session code.' },
+        { title: 'Host approves judges', body: 'Manage approvals and rejections in Settings.' },
+        { title: 'Score by phases', body: 'Host sets cutoff and advances once each phase closes.' }
       ],
+      howToRulesTitle: 'What the audience sees',
+      howToRulesBody: 'Public results only show phases already closed by the host. The active phase stays hidden.',
       howToClose: 'Close'
     },
     create: {
