@@ -318,11 +318,17 @@ export default function PhaseReportModal({
                   {winnerOverallResult?.phaseBreakdown?.length > 0 && (
                     <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-accent/20 bg-app-card/55 px-5 py-5 text-left">
                       <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="overflow-hidden rounded-xl border border-app-border/60">
+                        <div className="grid grid-cols-[1fr_auto_auto] bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
+                          <div className="px-3 py-2 text-left">{t.board.phaseNamePlaceholder}</div>
+                          <div className="px-3 py-2 text-right">{t.board.total}</div>
+                          <div className="px-3 py-2 text-right">{t.board.average}</div>
+                        </div>
                         {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
-                          <div key={`${phaseResult.phaseName}-${idx}`} className="flex items-center justify-between rounded-lg border border-app-border/50 bg-app-card/30 px-3 py-2">
-                            <span className="text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</span>
-                            <span className="text-sm font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.avg.toFixed(2) : '0.00'}</span>
+                          <div key={`${phaseResult.phaseName}-${idx}`} className="grid grid-cols-[1fr_auto_auto] border-t border-app-border/50 bg-app-card/35">
+                            <div className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName}</div>
+                            <div className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</div>
+                            <div className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? phaseResult.avg.toFixed(2) : '0.00'}</div>
                           </div>
                         ))}
                       </div>
