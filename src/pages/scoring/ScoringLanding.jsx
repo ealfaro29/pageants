@@ -555,7 +555,7 @@ export default function ScoringLanding() {
                     </button>
                   </div>
                 </div>
-                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-12 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
                   {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.create.submitBusy}</> : t.create.submitIdle}
                 </button>
               </form>
@@ -573,7 +573,7 @@ export default function ScoringLanding() {
                   </span>
                   <input type="text" value={sessionCode} onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }} className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.join.sessionCodePlaceholder} maxLength={6} required />
                 </div>
-                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-12 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
                   {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.join.submitBusy}</> : t.join.submitIdle}
                 </button>
               </form>
@@ -590,7 +590,7 @@ export default function ScoringLanding() {
                   </span>
                   <input type="text" value={sessionCode} onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }} className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.resultsAccess.sessionCodePlaceholder} maxLength={6} required />
                 </div>
-                <button type="submit" className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest">
+                <button type="submit" className="scoring-btn-primary w-full rounded-lg h-12 text-xs font-bold uppercase tracking-widest">
                   {t.resultsAccess.submitIdle}
                 </button>
               </form>
@@ -636,7 +636,7 @@ export default function ScoringLanding() {
                   className={`rounded-lg py-2 px-1 flex flex-col items-center gap-1 transition-colors ${active ? 'bg-app-accent/12 text-app-accent' : 'text-app-muted/70'}`}
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold tracking-tight leading-tight text-center">{item.label}</span>
                 </button>
               );
             })}
@@ -657,34 +657,34 @@ export default function ScoringLanding() {
             </button>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,0.2),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(255,255,255,0.1),transparent_35%)] pointer-events-none" />
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[320px] md:min-h-[360px]">
-              <div className="md:col-span-5 relative min-h-[210px] md:min-h-full">
+              <div className="md:col-span-5 relative min-h-[190px] md:min-h-full">
                 <img
                   src="/angel-muse-doll.png"
                   alt="Angel Muse Doll"
-                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-bottom-2 md:-ml-6 h-[250px] md:h-[430px] w-auto max-w-none object-contain drop-shadow-[0_25px_35px_rgba(0,0,0,0.5)]"
+                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-bottom-2 md:-ml-6 h-[220px] sm:h-[250px] md:h-[430px] w-auto max-w-none object-contain drop-shadow-[0_25px_35px_rgba(0,0,0,0.5)]"
                 />
               </div>
-              <div className="md:col-span-7 px-6 pb-6 pt-4 md:p-10 flex flex-col justify-center">
+              <div className="md:col-span-7 px-4 sm:px-6 pb-6 pt-4 md:p-10 flex flex-col justify-center">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-app-accent/90 font-bold mb-2">
                   {t.splash.kicker}
                 </p>
-                <h2 className="text-4xl md:text-6xl font-light tracking-tight text-app-text leading-none mb-4">{t.splash.title}</h2>
+                <h2 className="text-3xl sm:text-4xl md:text-6xl font-light tracking-tight text-app-text leading-none mb-4">{t.splash.title}</h2>
                 <p className="text-[11px] uppercase tracking-[0.2em] text-app-muted/75 font-semibold">{t.splash.appInfoTitle}</p>
                 <p className="mt-2 text-sm md:text-base text-app-muted/85 leading-relaxed">{t.splash.appInfoBody}</p>
                 <p className="mt-4 text-xs text-app-muted/80">
                   {t.splash.createdByLabel}: <span className="text-app-text font-semibold">Angel Muse Doll</span>
                 </p>
-                <div className="mt-6 flex flex-wrap items-center gap-2">
+                <div className="mt-6 flex flex-col sm:flex-row flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowWelcomeSplash(false)}
-                    className="scoring-btn-primary rounded-xl h-11 px-4 text-xs font-bold uppercase tracking-widest"
+                    className="scoring-btn-primary rounded-xl h-11 w-full sm:w-auto px-4 text-xs font-bold uppercase tracking-widest"
                   >
                     {t.splash.enterButton}
                   </button>
                   <Link
                     to="/manual"
-                    className="inline-flex items-center gap-2 rounded-xl border border-app-border/70 bg-app-card/65 h-11 px-4 text-xs font-bold uppercase tracking-widest text-app-text hover:text-app-accent no-underline"
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-app-border/70 bg-app-card/65 h-11 px-4 text-xs font-bold uppercase tracking-widest text-app-text hover:text-app-accent no-underline"
                   >
                     <BookOpen className="w-4 h-4" />
                     {t.splash.howToButton}

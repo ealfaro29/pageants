@@ -343,7 +343,7 @@ export default function PublicResults() {
       className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text font-sans`}
       style={getScoringThemeStyleVars(accentColor, theme)}
     >
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
+      <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-8">
         <header className="scoring-panel rounded-2xl p-4 md:p-6 mb-4 md:mb-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
@@ -351,14 +351,14 @@ export default function PublicResults() {
               <h1 className="text-2xl md:text-3xl font-black tracking-tight">{session.name}</h1>
               <p className="text-xs text-app-muted/70 mt-1">{getSessionTypeLabel(session.type, currentLanguage)}</p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
               <button
                 onClick={() => {
                   const newTheme = theme === 'dark' ? 'light' : 'dark';
                   setTheme(newTheme);
                   persistScoringTheme(newTheme);
                 }}
-                className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
+                className="scoring-btn-icon w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
                 title={t.board.themeToggle}
                 aria-label={t.board.themeToggle}
               >
@@ -396,14 +396,14 @@ export default function PublicResults() {
         )}
 
         <section className="scoring-panel rounded-2xl overflow-hidden">
-          <div className="flex overflow-x-auto border-b border-app-border bg-app-card px-4 py-3 scrollbar-none">
+          <div className="flex overflow-x-auto border-b border-app-border bg-app-card px-3 sm:px-4 py-3 scrollbar-none">
             {visiblePhases.map((phase, idx) => {
               const phaseIndex = visiblePhaseIndexes[idx];
               return (
               <button
                 key={`${phase.name}-${idx}`}
                 onClick={() => setSelectedView(phaseIndex)}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
+                className={`px-3 py-2 text-[11px] sm:text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
                   selectedView === phaseIndex ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
                 }`}
               >
@@ -415,7 +415,7 @@ export default function PublicResults() {
             {isTotalScoring && (
               <button
                 onClick={() => setSelectedView(OVERALL_RESULTS_VIEW)}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
+                className={`px-3 py-2 text-[11px] sm:text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
                   isOverallView ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
                 }`}
               >
@@ -426,7 +426,7 @@ export default function PublicResults() {
             {session.status === 'completed' && winner && (
               <button
                 onClick={() => setSelectedView(WINNER_VIEW)}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
+                className={`px-3 py-2 text-[11px] sm:text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
                   isWinnerView ? 'border border-amber-400/30 bg-amber-400/10 text-amber-500' : 'text-amber-600/80 hover:text-amber-600 hover:bg-amber-400/10'
                 }`}
               >
@@ -436,7 +436,7 @@ export default function PublicResults() {
             )}
           </div>
 
-          <div className="p-4 md:p-6">
+          <div className="p-3 sm:p-4 md:p-6">
             {!hasCompletedPhases && !isWinnerView ? (
               <div className="rounded-xl border border-app-border/80 bg-app-card/40 px-4 py-12 text-center">
                 <p className="text-sm text-app-muted/90">{t.board.publicCompletedPhasesPending || 'Aún no hay fases cerradas para mostrar.'}</p>
@@ -445,7 +445,7 @@ export default function PublicResults() {
                 )}
               </div>
             ) : isWinnerView ? (
-              <div className="scoring-winner-stage relative flex min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-8 text-center">
+              <div className="scoring-winner-stage relative flex min-h-[420px] md:min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-5 sm:p-8 text-center">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_80%_15%,rgba(251,191,36,0.18),transparent_20%),radial-gradient(circle_at_50%_85%,rgba(255,255,255,0.05),transparent_20%)] opacity-80" />
                 <div className="relative z-10 flex w-full max-w-3xl flex-col items-center">
                   <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-amber-200/20 bg-amber-300/10 text-amber-200 shadow-[0_0_30px_rgba(251,191,36,0.2)]">

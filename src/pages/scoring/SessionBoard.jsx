@@ -1165,14 +1165,14 @@ export default function SessionBoard() {
       style={getScoringThemeStyleVars(accentColor, theme)}
     >
       {/* HEADER - Global at top */}
-      <header className="min-h-10 md:min-h-12 border-b border-app-border/60 bg-app-card/80 backdrop-blur-md flex items-center justify-between gap-2 md:gap-3 px-2 md:px-5 py-1 md:py-2 flex-shrink-0 z-20 flex-wrap">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-wrap">
+      <header className="min-h-10 md:min-h-12 border-b border-app-border/60 bg-app-card/80 backdrop-blur-md flex items-center justify-between gap-2 md:gap-3 px-2 md:px-5 py-1.5 md:py-2 flex-shrink-0 z-20 flex-wrap">
+        <div className="flex items-center gap-1.5 md:gap-3 min-w-0 flex-wrap">
           {session.type === 'Global' ? <Globe className="w-3 md:w-4 h-3 md:h-4 text-app-muted/70 shrink-0" /> : <MapPin className="w-3 md:w-4 h-3 md:h-4 text-app-muted/70 shrink-0" />}
-          <h1 className="text-sm md:text-base font-bold text-app-text tracking-tight truncate">{session.name}</h1>
+          <h1 className="text-xs sm:text-sm md:text-base font-bold text-app-text tracking-tight truncate max-w-[160px] sm:max-w-[280px] md:max-w-none">{session.name}</h1>
           <span className="text-[10px] md:text-xs text-app-muted/50 bg-app-border/30 px-1.5 md:px-2 py-0.5 rounded border border-app-border shrink-0">{getSessionTypeLabel(session.type, currentLanguage)}</span>
-          <span className="text-[10px] md:text-xs text-app-muted/50 shrink-0">{judges.length} {judges.length === 1 ? t.board.judgeSingular : t.board.judgePlural}</span>
+          <span className="hidden sm:inline text-[10px] md:text-xs text-app-muted/50 shrink-0">{judges.length} {judges.length === 1 ? t.board.judgeSingular : t.board.judgePlural}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 flex-wrap justify-end">
           {isHost && (
             <>
               <button onClick={openPublicResults} className="scoring-btn-icon hidden lg:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.openInNewTab} aria-label={t.board.openInNewTab}>
@@ -1193,11 +1193,11 @@ export default function SessionBoard() {
               </button>
             </>
           )}
-          <button onClick={copyCode} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono tracking-widest" title={t.board.copyCode}>
+          <button onClick={copyCode} className="scoring-btn-icon flex items-center gap-1 px-2 py-1 rounded text-[10px] sm:text-xs font-mono tracking-widest" title={t.board.copyCode}>
             {session.id}
             {codeCopied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </button>
-          <div className="flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             <span className="text-sm text-app-muted max-w-[120px] truncate">{judgeName}</span>
             {isHost && <span className="scoring-badge text-[10px] px-1.5 py-0.5 rounded">{t.board.hostBadge}</span>}
             <button onClick={() => {
@@ -1208,17 +1208,17 @@ export default function SessionBoard() {
               {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
           </div>
-          <div className="h-4 w-px bg-app-border/50 mx-1" />
-          <button onClick={() => { localStorage.removeItem('judgeName'); navigate('/'); }} className="scoring-btn-icon p-1.5 rounded-full text-app-danger hover:bg-app-danger/10" title={t.board.exitSession} aria-label={t.board.exitSession}>
+          <div className="hidden lg:block h-4 w-px bg-app-border/50 mx-1" />
+          <button onClick={() => { localStorage.removeItem('judgeName'); navigate('/'); }} className="hidden lg:inline-flex scoring-btn-icon p-1.5 rounded-full text-app-danger hover:bg-app-danger/10" title={t.board.exitSession} aria-label={t.board.exitSession}>
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
 
       {showTransferredControlsNotice && (
-        <div className="px-4 pt-3">
+        <div className="px-3 sm:px-4 pt-3">
           <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-200">
+            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-cyan-200">
               {t.board.controlsTransferredNotice(controlHost)}
             </p>
             <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
@@ -1227,10 +1227,10 @@ export default function SessionBoard() {
       )}
 
       {showReclaimControlsNotice && (
-        <div className="px-4 pt-3">
+        <div className="px-3 sm:px-4 pt-3">
           <div className="rounded-xl border border-app-accent/35 bg-app-accent/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-app-accent">
+              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-app-accent">
                 {t.board.controlsTransferredNotice(controlHost)}
               </p>
               <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
@@ -1247,25 +1247,25 @@ export default function SessionBoard() {
       )}
 
       {hasPendingJudgeRequests && (
-        <div className="px-4 pt-3">
+        <div className="px-3 sm:px-4 pt-3">
           <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200">{t.board.pendingRequestsNotice(pendingJudgeRequests.length)}</p>
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-amber-200">{t.board.pendingRequestsNotice(pendingJudgeRequests.length)}</p>
                 <p className="text-sm text-app-text mt-1">{t.board.pendingRequestPrompt(pendingJudgeRequests[0])}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full sm:w-auto items-center gap-2">
                 <button
                   type="button"
                   onClick={() => approveJudge(pendingJudgeRequests[0]).catch(() => {})}
-                  className="rounded-lg border border-emerald-300/30 bg-emerald-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/25 transition-colors"
+                  className="rounded-lg border border-emerald-300/30 bg-emerald-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/25 transition-colors flex-1 sm:flex-none"
                 >
                   {t.board.approveFromNotice}
                 </button>
                 <button
                   type="button"
                   onClick={() => rejectJudge(pendingJudgeRequests[0]).catch(() => {})}
-                  className="rounded-lg border border-red-300/30 bg-red-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-red-200 hover:bg-red-500/25 transition-colors"
+                  className="rounded-lg border border-red-300/30 bg-red-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-red-200 hover:bg-red-500/25 transition-colors flex-1 sm:flex-none"
                 >
                   {t.board.rejectFromNotice}
                 </button>
@@ -1276,16 +1276,16 @@ export default function SessionBoard() {
       )}
 
       {/* MAIN CONTENT AREA with GAP */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+5rem)] lg:pb-4 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-3 md:gap-4 p-3 md:p-4 pb-[calc(env(safe-area-inset-bottom,0px)+5rem)] lg:pb-4 overflow-hidden">
         
         {/* LEFT: TABLERO DE PUNTUACIÓN (CARD) - 60% */}
         <div className={`lg:w-[60%] flex flex-col min-h-0 bg-app-card rounded-2xl shadow-xl border border-app-border overflow-hidden ${activeTab !== 'scoring' ? 'hidden lg:flex' : 'flex'} ${isSessionComplete ? 'bg-gradient-to-br from-app-card to-app-border/10' : ''}`}>
           {/* Phase header */}
           <div className="p-2 md:p-4 border-b border-app-border/50 bg-app-card/50 shrink-0">
-            <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+            <div className="flex items-center gap-2 md:gap-3 overflow-x-auto pb-1 scrollbar-none">
               {/* Phase nav pills (completed + current) */}
               {phases.map((ph, i) => (
-                <div key={i} className={`text-xs px-2.5 py-1 rounded-md font-medium ${
+                <div key={i} className={`text-xs px-2.5 py-1 rounded-md font-medium shrink-0 ${
                   i === currentPhaseIndex ? 'scoring-badge-active' :
                   ph.status === 'completed' ? 'bg-app-border text-app-muted/70' : 'bg-app-border/30 text-app-muted/50'
                 }`}>
@@ -1294,7 +1294,7 @@ export default function SessionBoard() {
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-4 mt-3">
+            <div className="flex items-center gap-3 md:gap-4 mt-2.5 md:mt-3 flex-wrap">
               {isHost ? (
                 <input
                   type="text" value={phaseNameDraft}
@@ -1309,14 +1309,14 @@ export default function SessionBoard() {
                       e.currentTarget.blur();
                     }
                   }}
-                  className="bg-transparent text-xl font-bold text-app-text focus:outline-none border-b border-transparent focus:border-app-border transition-colors flex-1 min-w-0"
+                  className="bg-transparent text-base sm:text-xl font-bold text-app-text focus:outline-none border-b border-transparent focus:border-app-border transition-colors flex-1 min-w-0"
                   placeholder={t.board.phaseNamePlaceholder}
                 />
               ) : (
-                <h2 className="text-xl font-bold text-app-text">{currentPhase.name}</h2>
+                <h2 className="text-base sm:text-xl font-bold text-app-text">{currentPhase.name}</h2>
               )}
               {isHost && (
-                <div className="shrink-0 rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
+                <div className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-app-muted/90 uppercase tracking-widest font-bold">{t.board.classifyLabel}</span>
                     <span className="inline-flex h-1.5 w-1.5 rounded-full bg-app-accent" />
@@ -1339,7 +1339,7 @@ export default function SessionBoard() {
 
           {/* Search bar (host, first phase only for adding) */}
           {isHost && currentPhaseIndex === 0 && !isSessionComplete && (
-            <div className="px-5 py-4 border-b border-app-border/30 bg-app-card/30 shrink-0">
+            <div className="px-3 md:px-5 py-3 md:py-4 border-b border-app-border/30 bg-app-card/30 shrink-0">
               {session.type === 'Nacional' && !selectedParentCountry && (
                 <div className="relative mb-2" ref={searchRef}>
                   <div className="relative">
@@ -1625,8 +1625,8 @@ export default function SessionBoard() {
                       <tr>
                         <th className="font-normal py-2 md:py-3 pl-2 md:pl-3 pr-1 w-5 md:w-6 text-center">#</th>
                         <th className="font-normal py-2 md:py-3 px-2 text-left">{t.board.contestantHeader}</th>
-                         <th className="font-normal py-2 md:py-3 px-2 text-center w-36 md:w-52 bg-app-border/40 border-x border-app-border/50">{t.board.yourScoreHeader}</th>
-                        {isHost && <th className="font-normal py-2 md:py-3 pr-2 md:pr-3 w-20 md:w-28"></th>}
+                        <th className="font-normal py-2 md:py-3 px-2 text-center w-28 md:w-52 bg-app-border/40 border-x border-app-border/50">{t.board.yourScoreHeader}</th>
+                        {isHost && <th className="font-normal py-2 md:py-3 pr-2 md:pr-3 w-16 md:w-28"></th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-app-border/50">
@@ -1659,7 +1659,7 @@ export default function SessionBoard() {
                                   {t.board.hostNotVotingLabel}
                                 </span>
                               ) : (
-                                <div className="flex items-center gap-2 md:gap-3">
+                                <div className="flex items-center gap-1.5 md:gap-3">
                                   <input
                                     type="range"
                                     min="0"
@@ -1690,7 +1690,7 @@ export default function SessionBoard() {
                                         flushScoreSave(p.id, e.target.value);
                                       }
                                     }}
-                                    className="w-12 h-7 md:w-16 md:h-9 bg-app-card border border-app-border rounded-lg text-center font-mono text-xs md:text-sm focus:outline-none focus:border-app-accent transition-colors"
+                                    className="w-14 h-8 md:w-16 md:h-9 bg-app-card border border-app-border rounded-lg text-center font-mono text-xs md:text-sm focus:outline-none focus:border-app-accent transition-colors"
                                     placeholder="0.00"
                                   />
                                 </div>
@@ -1705,7 +1705,7 @@ export default function SessionBoard() {
                                 ) : (
                                   <button
                                     onClick={() => toggleParticipantAbsent(p.id)}
-                                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-colors ${
+                                    className={`inline-flex items-center gap-1 rounded-lg border px-1.5 sm:px-2 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-colors ${
                                       isAbsent
                                         ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
                                         : 'border-amber-300/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
@@ -1714,7 +1714,7 @@ export default function SessionBoard() {
                                     aria-label={`${isAbsent ? t.board.markPresent : t.board.markAbsent}: ${p.name}`}
                                   >
                                     {isAbsent ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                                    {isAbsent ? t.board.markPresent : t.board.markAbsent}
+                                    <span className="hidden sm:inline">{isAbsent ? t.board.markPresent : t.board.markAbsent}</span>
                                   </button>
                                 )}
                               </td>
@@ -1737,12 +1737,12 @@ export default function SessionBoard() {
                         <p style={{ color: 'var(--color-app-danger)' }}>{t.board.undoPhaseWarning}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap justify-end">
+                    <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end w-full sm:w-auto">
                       {canUndoPhase && !isSessionComplete && (
                         <button
                           type="button"
                           onClick={() => undoPhaseAdvance().catch(() => {})}
-                          className={`flex items-center gap-2 px-6 py-5 rounded-lg text-sm font-bold uppercase tracking-widest transition-all ${
+                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 md:px-6 py-3 md:py-5 rounded-lg text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
                             undoAttempted && currentPhaseHasSavedScores
                               ? 'scoring-btn-danger animate-pulse'
                               : 'scoring-btn-secondary'
@@ -1755,7 +1755,7 @@ export default function SessionBoard() {
                       {canAdvance && (
                         <button
                           onClick={handlePhaseAction}
-                          className={`flex items-center gap-2 px-6 py-5 rounded-lg text-sm font-bold uppercase tracking-widest transition-all ${
+                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 md:px-6 py-3 md:py-5 rounded-lg text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
                             forceAttempted
                               ? 'scoring-btn-danger animate-pulse'
                               : allJudgesComplete
@@ -1859,7 +1859,7 @@ export default function SessionBoard() {
           <div className="px-6 py-5 border-b border-app-border/50 bg-app-card shrink-0">
             <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{t.board.settingsButton} & {t.board.infoTitle || 'Info'}</h3>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-8 text-center pb-24">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8 text-center pb-24">
             <div className="space-y-2">
               <p className="text-xs text-app-muted uppercase tracking-widest">{t.board.judgeSingular}</p>
               <p className="text-2xl font-black text-app-text">{judgeName}</p>
@@ -1870,14 +1870,14 @@ export default function SessionBoard() {
               <div>
                 <p className="text-[10px] text-app-muted uppercase tracking-widest mb-1">{t.board.sessionCode || 'Código de Sesión'}</p>
                 <div className="flex items-center justify-center gap-2">
-                  <code className="text-xl font-mono text-app-accent font-bold tracking-widest">{session.id}</code>
+                  <code className="text-lg sm:text-xl font-mono text-app-accent font-bold tracking-widest break-all">{session.id}</code>
                   <button onClick={copyCode} className="p-2 text-app-muted/50 transition-colors hover:text-app-text">
                     {codeCopied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
               {isHost && (
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                   <button onClick={copyPublicResultsLink} className="scoring-btn-icon flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold">
                     {resultsLinkCopied ? <Check className="w-4 h-4 text-green-500" /> : <Link2 className="w-4 h-4" />}
                     {resultsLinkCopied ? t.board.linkCopied : t.board.copyPublicLink}
