@@ -694,21 +694,26 @@ export default function ScoringLanding() {
               <X className="w-4 h-4" />
             </button>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,0.2),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(255,255,255,0.1),transparent_35%)] pointer-events-none" />
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[320px] md:min-h-[360px]">
-              <div className="md:col-span-5 relative min-h-[190px] md:min-h-full">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[300px] md:min-h-[360px]">
+              <div className="md:col-span-5 relative min-h-[170px] md:min-h-full border-b border-app-border/40 md:border-b-0 md:border-r md:border-app-border/40 bg-gradient-to-r from-app-accent/10 via-transparent to-transparent">
                 <img
                   src="/angel-muse-doll.png"
                   alt="Angel Muse Doll"
-                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-bottom-2 md:-ml-6 h-[220px] sm:h-[250px] md:h-[430px] w-auto max-w-none object-contain drop-shadow-[0_25px_35px_rgba(0,0,0,0.5)]"
+                  className="md:hidden mx-auto mt-4 h-[175px] sm:h-[205px] w-auto max-w-none object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.5)]"
+                />
+                <img
+                  src="/angel-muse-doll.png"
+                  alt="Angel Muse Doll"
+                  className="hidden md:block absolute left-0 -bottom-2 -ml-6 h-[430px] w-auto max-w-none object-contain drop-shadow-[0_25px_35px_rgba(0,0,0,0.5)]"
                 />
               </div>
               <div className="md:col-span-7 px-4 sm:px-6 pb-6 pt-4 md:p-10 flex flex-col justify-center">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-app-accent/90 font-bold mb-2">
                   {t.splash.kicker}
                 </p>
-                <h2 className="text-3xl sm:text-4xl md:text-6xl font-light tracking-tight text-app-text leading-none mb-4">{t.splash.title}</h2>
+                <h2 className="text-4xl sm:text-4xl md:text-6xl font-light tracking-tight text-app-text leading-none mb-4">{t.splash.title}</h2>
                 <p className="text-[11px] uppercase tracking-[0.2em] text-app-muted/75 font-semibold">{t.splash.appInfoTitle}</p>
-                <p className="mt-2 text-sm md:text-base text-app-muted/85 leading-relaxed">{t.splash.appInfoBody}</p>
+                <p className="mt-2 text-sm md:text-base text-app-muted/85 leading-relaxed max-w-xl">{t.splash.appInfoBody}</p>
                 <p className="mt-4 text-xs text-app-muted/80">
                   {t.splash.createdByLabel}: <span className="text-app-text font-semibold">Angel Muse Doll</span>
                 </p>

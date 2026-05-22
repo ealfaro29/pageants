@@ -202,6 +202,7 @@ export default function SessionBoard() {
   const [cutoffModalValue, setCutoffModalValue] = useState('');
   const [cutoffModalMax, setCutoffModalMax] = useState(0);
   const [cutoffModalError, setCutoffModalError] = useState('');
+  const [isAdvancingPhase, setIsAdvancingPhase] = useState(false);
 
   // Search state
   const [countries, setCountries] = useState([]);
@@ -561,9 +562,19 @@ export default function SessionBoard() {
   const updatePhaseName = async (name) => {
     const normalizedName = normalizeUpperLabel(name);
     if (!normalizedName || normalizedName === currentPhase.name) return;
-    const nextPhases = [...phases];
-    nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name: normalizedName };
-    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+
+    if (!Array.isArray(session?.phases)) {
+      const requestedPhaseIndex = Number.isInteger(session?.currentPhaseIndex) ? session.currentPhaseIndex : 0;
+      const migratedPhases = normalizePhases(session?.phases, requestedPhaseIndex, currentLanguage);
+      const nextPhases = [...migratedPhases];
+      nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name: normalizedName };
+      await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+      return;
+    }
+
+    await updateDoc(doc(db, "sessions", session.id), {
+      [`phases.${currentPhaseIndex}.name`]: normalizedName
+    });
   };
 
   const commitPhaseName = () => {
@@ -579,10 +590,10 @@ export default function SessionBoard() {
   };
 
   const updatePhaseCutoff = async (value) => {
-    const nextPhases = [...phases];
     const num = parseInt(value);
-    nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], cutoff: isNaN(num) || num <= 0 ? null : num };
-    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+    await updateDoc(doc(db, "sessions", session.id), {
+      [`phases.${currentPhaseIndex}.cutoff`]: isNaN(num) || num <= 0 ? null : num
+    });
   };
 
   const toggleParticipantAbsent = async (participantId) => {
@@ -595,13 +606,9 @@ export default function SessionBoard() {
       ? currentAbsentIds.filter(id => id !== participantId)
       : [...currentAbsentIds, participantId];
 
-    const nextPhases = [...phases];
-    nextPhases[currentPhaseIndex] = {
-      ...phase,
-      absentParticipantIds: nextAbsentIds.length ? nextAbsentIds : null
-    };
-
-    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
+    await updateDoc(doc(db, "sessions", session.id), {
+      [`phases.${currentPhaseIndex}.absentParticipantIds`]: nextAbsentIds.length ? nextAbsentIds : null
+    });
   };
 
   const renameSession = async (nextName) => {
@@ -664,6 +671,8 @@ export default function SessionBoard() {
   };
 
   const advancePhase = async (cutoffOverride = null) => {
+    if (isAdvancingPhase) return;
+    setIsAdvancingPhase(true);
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = { ...(scores[phaseKey] || {}) };
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
@@ -697,6 +706,7 @@ export default function SessionBoard() {
 
     if (!allComplete && !forceAttempted) {
       setForceAttempted(true);
+      setIsAdvancingPhase(false);
       return; // Show warning, next click will force
     }
 
@@ -714,9 +724,10 @@ export default function SessionBoard() {
       phaseScores = nextPhaseScores;
     }
 
-    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
-      [phaseKey]: phaseScores
-    }, { merge: true });
+    try {
+      await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
+        [phaseKey]: phaseScores
+      }, { merge: true });
 
     // Mark current phase complete, add new phase
     const nextPhases = [...phases];
@@ -738,14 +749,19 @@ export default function SessionBoard() {
       participantIds: qualifiedParticipants.map(participant => participant.id)
     });
 
-    await updateDoc(doc(db, "sessions", session.id), {
-      phases: nextPhases,
-      currentPhaseIndex: newPhaseIndex
-    });
-    setForceAttempted(false);
+      await updateDoc(doc(db, "sessions", session.id), {
+        phases: nextPhases,
+        currentPhaseIndex: newPhaseIndex
+      });
+      setForceAttempted(false);
+    } finally {
+      setIsAdvancingPhase(false);
+    }
   };
 
   const revealWinner = async (cutoffOverride = null) => {
+    if (isAdvancingPhase) return;
+    setIsAdvancingPhase(true);
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = { ...(scores[phaseKey] || {}) };
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
@@ -777,6 +793,7 @@ export default function SessionBoard() {
 
     if (!allComplete && !forceAttempted) {
       setForceAttempted(true);
+      setIsAdvancingPhase(false);
       return;
     }
 
@@ -793,9 +810,10 @@ export default function SessionBoard() {
       phaseScores = nextPhaseScores;
     }
 
-    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
-      [phaseKey]: phaseScores
-    }, { merge: true });
+    try {
+      await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
+        [phaseKey]: phaseScores
+      }, { merge: true });
 
     const rankedCurrentParticipants = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
     const scoreSnapshot = { ...scores, [phaseKey]: phaseScores };
@@ -828,14 +846,17 @@ export default function SessionBoard() {
       participantIds: currentParticipants.map(participant => participant.id)
     };
 
-    await updateDoc(doc(db, "sessions", session.id), {
-      phases: nextPhases,
-      status: 'completed',
-      winnerId: winner?.id || null,
-      winnerPhaseIndex: currentPhaseIndex,
-      completedAt: Date.now()
-    });
-    setForceAttempted(false);
+      await updateDoc(doc(db, "sessions", session.id), {
+        phases: nextPhases,
+        status: 'completed',
+        winnerId: winner?.id || null,
+        winnerPhaseIndex: currentPhaseIndex,
+        completedAt: Date.now()
+      });
+      setForceAttempted(false);
+    } finally {
+      setIsAdvancingPhase(false);
+    }
   };
 
   const openCutoffModal = (maxAllowed) => {
@@ -860,6 +881,7 @@ export default function SessionBoard() {
   };
 
   const handlePhaseAction = async () => {
+    if (isAdvancingPhase) return;
     setUndoAttempted(false);
     if (pendingSubmitJudges.length > 0 && !submitReminderAttempted) {
       setSubmitReminderAttempted(true);
@@ -1050,6 +1072,7 @@ export default function SessionBoard() {
     : judges.filter(judge => judgeHasSubmittedPhase(judge)).length;
   const pendingSubmitJudges = !hasNonHostJudges ? [] : judges.filter(judge => !judgeHasSubmittedPhase(judge));
   const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
+  const judgeCompletionRatio = judges.length > 0 ? Math.min(votedJudges / judges.length, 1) : 1;
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
   const hostVotingDisabledForCurrentUser = session.hostCanVote === false && isOriginalHost;
@@ -1386,6 +1409,8 @@ export default function SessionBoard() {
                   onBlur={commitPhaseName}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitPhaseName();
                       e.currentTarget.blur();
                     }
                     if (e.key === 'Escape') {
@@ -1812,18 +1837,21 @@ export default function SessionBoard() {
               </div>
 
               {currentUserCanSubmitScores && (
-                <div className="p-2 md:p-4 border-t border-app-border bg-app-card shrink-0">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <p
-                      className={`text-xs font-bold uppercase tracking-widest ${currentUserSubmittedPhase ? 'text-emerald-300' : 'text-amber-300'}`}
-                    >
-                      {currentUserSubmittedPhase ? t.board.submitScoresStatusSubmitted : t.board.submitScoresStatusDraft}
-                    </p>
+                <div className="px-3 pb-2 pt-3 md:px-4 md:pt-4 shrink-0 border-t border-app-border/60 bg-app-card/90">
+                  <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-app-muted/75">{t.board.submitScores}</p>
+                      <p
+                        className={`text-[10px] font-bold uppercase tracking-[0.16em] ${currentUserSubmittedPhase ? 'text-emerald-300' : 'text-amber-300'}`}
+                      >
+                        {currentUserSubmittedPhase ? t.board.submitScoresStatusSubmitted : t.board.submitScoresStatusDraft}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       disabled={isSubmittingScores}
                       onClick={() => submitCurrentJudgeScores().catch(() => {})}
-                      className="scoring-btn-primary rounded-lg h-10 px-4 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
+                      className="mt-3 w-full scoring-btn-primary rounded-lg h-10 px-4 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
                     >
                       {isSubmittingScores
                         ? t.board.submitScoresBusy
@@ -1833,27 +1861,34 @@ export default function SessionBoard() {
                     </button>
                   </div>
                   {submitScoreError && (
-                    <p className="mt-2 text-xs text-red-300">{submitScoreError}</p>
+                    <p className="mt-2 text-xs text-red-300 px-1">{submitScoreError}</p>
                   )}
                 </div>
               )}
 
               {/* Advance button (host only) */}
               {isHost && (currentParticipants.length > 0 || currentPhaseIndex > 0) && (
-                <div className="p-2 md:p-4 border-t border-app-border bg-app-card shrink-0">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="text-xs text-app-muted/70 space-y-1">
-                      <span style={votedJudges === judges.length ? { color: 'var(--color-app-success)' } : undefined}>{t.board.judgesCompleted(votedJudges, judges.length)}</span>
+                <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4 shrink-0 border-t border-app-border/60 bg-app-card/95">
+                  <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="text-xs text-app-muted/80 space-y-2 flex-1 min-w-[220px]">
+                        <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-app-muted/70">
+                          {t.board.judgesCompleted(votedJudges, judges.length)}
+                        </p>
+                        <div className="h-2 rounded-full bg-app-border/60 overflow-hidden">
+                          <div className="h-full rounded-full bg-app-accent transition-all" style={{ width: `${Math.round(judgeCompletionRatio * 100)}%` }} />
+                        </div>
+                        <span style={votedJudges === judges.length ? { color: 'var(--color-app-success)' } : undefined}>{t.board.judgesCompleted(votedJudges, judges.length)}</span>
                       {submitReminderAttempted && pendingSubmitJudges.length > 0 && (
                         <p style={{ color: 'var(--color-app-warning)' }}>
-                          {`Falta submit de: ${pendingSubmitJudges.join(', ')}`}
+                          {t.board.pendingSubmitList(pendingSubmitJudges.join(', '))}
                         </p>
                       )}
                       {!isSessionComplete && currentPhaseIndex > 0 && undoAttempted && currentPhaseHasSavedScores && (
                         <p style={{ color: 'var(--color-app-danger)' }}>{t.board.undoPhaseWarning}</p>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end w-full sm:w-auto">
+                      </div>
+                      <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end w-full sm:w-auto">
                       {canUndoPhase && !isSessionComplete && (
                         <button
                           type="button"
@@ -1871,21 +1906,25 @@ export default function SessionBoard() {
                       {canAdvance && (
                         <button
                           onClick={handlePhaseAction}
+                          disabled={isAdvancingPhase}
                           className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 md:px-6 py-3 md:py-5 rounded-lg text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
                             forceAttempted
                               ? 'scoring-btn-danger animate-pulse'
                               : allJudgesComplete
                                 ? 'scoring-btn-primary'
                                 : 'scoring-btn-secondary'
-                          }`}
+                          } ${isAdvancingPhase ? 'opacity-60 pointer-events-none' : ''}`}
                         >
-                          {forceAttempted ? (
+                          {isAdvancingPhase ? (
+                            <>{t.board.advancingPhaseBusy}</>
+                          ) : forceAttempted ? (
                             <><AlertTriangle className="w-4 h-4" /> {isFinalRound ? t.board.forceViewWinner(pendingVotesCount) : t.board.forceAdvance(pendingVotesCount)}</>
                           ) : (
                             <><ChevronRight className="w-4 h-4" /> {isFinalRound ? t.board.viewWinner : t.board.advancePhase}</>
                           )}
                         </button>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>
