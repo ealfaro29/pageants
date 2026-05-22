@@ -52,6 +52,15 @@ export const scoringCopy = {
     backToStart: 'Volver al inicio',
     footerByLabel: 'Creado por',
     loading: 'Cargando...',
+    splash: {
+      kicker: 'Bienvenida oficial',
+      title: 'Welcome',
+      appInfoTitle: 'Pageants Scoring App',
+      appInfoBody: 'Sistema profesional para crear sesiones, gestionar jueces, puntuar por fases y publicar resultados en vivo.',
+      createdByLabel: 'Creado por',
+      enterButton: 'Entrar al sistema',
+      howToButton: 'How to use'
+    },
     landing: {
       title: 'Sistema de Puntuacion',
       subtitle: 'Evaluación en tiempo real para certámenes.',
@@ -300,6 +309,15 @@ export const scoringCopy = {
     backToStart: 'Back to start',
     footerByLabel: 'Created by',
     loading: 'Loading...',
+    splash: {
+      kicker: 'Official welcome',
+      title: 'Welcome',
+      appInfoTitle: 'Pageants Scoring App',
+      appInfoBody: 'Professional system to create sessions, manage judges, score by phases, and publish live results.',
+      createdByLabel: 'Created by',
+      enterButton: 'Enter system',
+      howToButton: 'How to use'
+    },
     landing: {
       title: 'Scoring System',
       subtitle: 'Real-time assessment for pageants.',

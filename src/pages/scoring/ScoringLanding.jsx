@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList } from 'lucide-react';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
@@ -41,6 +41,7 @@ export default function ScoringLanding() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [mobileSection, setMobileSection] = useState('home');
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
   const t = scoringCopy[language];
 
   const accents = [
@@ -55,6 +56,11 @@ export default function ScoringLanding() {
     persistScoringLanguage(language);
     document.title = t.appTitle;
   }, [language, t]);
+
+  useEffect(() => {
+    document.body.style.overflow = showWelcomeSplash ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showWelcomeSplash]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -252,37 +258,6 @@ export default function ScoringLanding() {
             {t.landing.howToButton}
           </Link>
         </motion.div>
-
-        <motion.section variants={itemVariants} className="w-full max-w-4xl mb-12">
-          <div className="relative overflow-hidden rounded-[2rem] border border-app-border/70 bg-app-card/55 backdrop-blur-xl shadow-[0_30px_80px_rgba(0,0,0,0.45)] min-h-[360px]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(251,191,36,0.16),transparent_45%),radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.08),transparent_40%)] pointer-events-none" />
-            <div className="relative z-10 grid grid-cols-12 h-full">
-              <div className="col-span-5 relative">
-                <img
-                  src="/angel-muse-doll.png"
-                  alt="Angel Muse Doll"
-                  className="absolute -bottom-2 -left-8 h-[420px] w-auto max-w-none object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.55)]"
-                />
-              </div>
-              <div className="col-span-7 p-10 flex flex-col justify-center">
-                <p className="text-[10px] uppercase tracking-[0.28em] text-app-accent/90 font-bold mb-3">
-                  {t.landing.angelHeroKicker} <span className="text-app-text">Angel Muse Doll</span>
-                </p>
-                <h2 className="text-6xl font-light tracking-tight text-app-text leading-none mb-6">{t.landing.angelHeroTitle}</h2>
-                <p className="text-sm md:text-base text-app-muted/85 leading-relaxed max-w-xl">
-                  {t.landing.angelHeroBody}
-                </p>
-                <Link
-                  to="/manual"
-                  className="mt-8 inline-flex w-fit items-center gap-2 rounded-xl border border-app-border/70 bg-app-card/55 px-5 py-3 text-xs font-bold uppercase tracking-[0.22em] text-app-text hover:text-app-accent hover:border-app-accent/40 transition-colors no-underline"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  {t.landing.angelHeroCta}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </motion.section>
 
         <motion.section variants={itemVariants} className="w-full max-w-3xl">
           <div className="scoring-panel rounded-[2rem] border border-app-border/70 bg-app-card/50 p-6 md:p-8">
@@ -490,25 +465,6 @@ export default function ScoringLanding() {
               </div>
               <h2 className="text-2xl font-black tracking-tight">{t.landing.mobileWelcomeTitle}</h2>
               <p className="text-sm text-app-muted/85 leading-relaxed">{t.landing.mobileWelcomeBody}</p>
-              <div className="relative overflow-hidden rounded-2xl border border-app-border/70 bg-app-card/45 min-h-[200px]">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.15),transparent_45%)] pointer-events-none" />
-                <img
-                  src="/angel-muse-doll.png"
-                  alt="Angel Muse Doll"
-                  className="absolute -bottom-4 -left-10 h-[250px] w-auto object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.45)]"
-                />
-                <div className="relative z-10 ml-[38%] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-app-accent/90 font-bold">{t.landing.angelHeroKicker}</p>
-                  <h3 className="text-2xl font-light text-app-text mt-1">{t.landing.angelHeroTitle}</h3>
-                  <Link
-                    to="/manual"
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-app-border/70 bg-app-card/60 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-app-text no-underline"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    {t.landing.angelHeroCta}
-                  </Link>
-                </div>
-              </div>
               <div className="grid grid-cols-1 gap-2">
                 <button type="button" onClick={() => setMobileSection('host')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
                   <p className="text-sm font-bold">{t.landing.roleHost}</p>
@@ -642,6 +598,58 @@ export default function ScoringLanding() {
           </div>
         </nav>
       </div>
+
+      {showWelcomeSplash && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-app-border/80 bg-app-card/60 backdrop-blur-xl shadow-[0_40px_80px_rgba(0,0,0,0.55)]">
+            <button
+              type="button"
+              onClick={() => setShowWelcomeSplash(false)}
+              className="absolute right-4 top-4 z-20 rounded-full border border-app-border/70 bg-app-card/70 p-2 text-app-muted hover:text-app-text"
+              aria-label="Close splash"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,0.2),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(255,255,255,0.1),transparent_35%)] pointer-events-none" />
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[360px]">
+              <div className="md:col-span-5 relative min-h-[210px] md:min-h-full">
+                <img
+                  src="/angel-muse-doll.png"
+                  alt="Angel Muse Doll"
+                  className="absolute -bottom-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-bottom-2 md:-ml-6 h-[250px] md:h-[430px] w-auto max-w-none object-contain drop-shadow-[0_25px_35px_rgba(0,0,0,0.5)]"
+                />
+              </div>
+              <div className="md:col-span-7 px-6 pb-6 pt-4 md:p-10 flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-app-accent/90 font-bold mb-2">
+                  {t.splash.kicker}
+                </p>
+                <h2 className="text-4xl md:text-6xl font-light tracking-tight text-app-text leading-none mb-4">{t.splash.title}</h2>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-app-muted/75 font-semibold">{t.splash.appInfoTitle}</p>
+                <p className="mt-2 text-sm md:text-base text-app-muted/85 leading-relaxed">{t.splash.appInfoBody}</p>
+                <p className="mt-4 text-xs text-app-muted/80">
+                  {t.splash.createdByLabel}: <span className="text-app-text font-semibold">Angel Muse Doll</span>
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowWelcomeSplash(false)}
+                    className="scoring-btn-primary rounded-xl h-11 px-4 text-xs font-bold uppercase tracking-widest"
+                  >
+                    {t.splash.enterButton}
+                  </button>
+                  <Link
+                    to="/manual"
+                    className="inline-flex items-center gap-2 rounded-xl border border-app-border/70 bg-app-card/65 h-11 px-4 text-xs font-bold uppercase tracking-widest text-app-text hover:text-app-accent no-underline"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    {t.splash.howToButton}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <motion.footer 
         initial={{ opacity: 0 }}
