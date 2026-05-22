@@ -29,6 +29,8 @@ function escapeXml(value) {
 }
 
 async function markScreenshot(filename, markers = []) {
+  if (!markers.length) return;
+  if (process.env.MANUAL_DISABLE_MARKERS === '1') return;
   const filePath = path.join(OUT_DIR, filename);
   const image = sharp(filePath);
   const metadata = await image.metadata();
@@ -144,6 +146,24 @@ async function main() {
     await markerFromLocator(hostPage.getByText(/^MU-[A-Z0-9]{6}$/), 'Session code')
   ]);
 
+  await hostPage.click('button:has-text("Add from list")');
+  await hostPage.waitForTimeout(400);
+  await hostPage.fill('textarea', `1.PHILIPPINES 🇵🇭 - Mara Ana - CE #1
+RUSSIA 🇷🇺 - Kiannnnmnnnn - CE #2
+PUETO RICO 🇵🇷 - Valentina Marisol - CE#8
+ARGENTINA 🇦🇷- SHAMCEY LOUISIANA/CE#9`);
+  await hostPage.click('button:has-text("Generate preview")');
+  await hostPage.waitForTimeout(500);
+  await hostPage.screenshot({ path: path.join(OUT_DIR, '05-add-from-list.png') });
+  await markScreenshot('05-add-from-list.png', [
+    await markerFromLocator(hostPage.getByRole('button', { name: /Add from list/i }), 'Bulk workflow'),
+    await markerFromLocator(hostPage.locator('textarea').first(), 'Paste chaotic list'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /Generate preview/i }), 'Generate preview'),
+    await markerFromLocator(hostPage.getByText(/^Preview:/i), 'Review before approve')
+  ]);
+  await hostPage.click('button:has-text("Close")');
+  await hostPage.waitForTimeout(300);
+
   const addCountryInput = hostPage.locator('input[placeholder="Add country..."]');
   await addCountryInput.fill('Scotland');
   await hostPage.waitForTimeout(800);
@@ -162,15 +182,15 @@ async function main() {
   await judgePage.fill('input[placeholder="XXXXXX"]', sessionSuffix);
   await judgePage.click('button:has-text("Join Panel")');
   await judgePage.waitForTimeout(2500);
-  await judgePage.screenshot({ path: path.join(OUT_DIR, '05-judge-awaiting-approval.png') });
-  await markScreenshot('05-judge-awaiting-approval.png', [
+  await judgePage.screenshot({ path: path.join(OUT_DIR, '06-judge-awaiting-approval.png') });
+  await markScreenshot('06-judge-awaiting-approval.png', [
     await markerFromLocator(judgePage.getByText(/Waiting for approval/i), 'Waiting status'),
     await markerFromLocator(judgePage.getByText(/approved by the host/i), 'Pending message')
   ]);
 
   await hostPage.waitForTimeout(1000);
-  await hostPage.screenshot({ path: path.join(OUT_DIR, '06-host-pending-notification.png') });
-  await markScreenshot('06-host-pending-notification.png', [
+  await hostPage.screenshot({ path: path.join(OUT_DIR, '07-host-pending-notification.png') });
+  await markScreenshot('07-host-pending-notification.png', [
     await markerFromLocator(hostPage.getByText(/is waiting for approval/i), 'Judge request alert'),
     await markerFromLocator(hostPage.getByRole('button', { name: /Approve now/i }), 'Approve'),
     await markerFromLocator(hostPage.getByRole('button', { name: /^Reject$/i }), 'Reject')
@@ -180,16 +200,16 @@ async function main() {
 
   await judgePage.waitForURL(/\/session\/[^/?]+\?judge=/, { timeout: 30000 });
   await judgePage.waitForTimeout(1500);
-  await judgePage.screenshot({ path: path.join(OUT_DIR, '07-judge-scoring.png') });
-  await markScreenshot('07-judge-scoring.png', [
+  await judgePage.screenshot({ path: path.join(OUT_DIR, '08-judge-scoring.png') });
+  await markScreenshot('08-judge-scoring.png', [
     await markerFromLocator(judgePage.locator('input[type="number"][step="0.01"]').first(), 'Score input'),
     await markerFromLocator(judgePage.getByText(/Last submitted results/i), 'Last submitted results')
   ]);
 
   await hostPage.click('button:has-text("Advance Phase")');
   await hostPage.waitForTimeout(800);
-  await hostPage.screenshot({ path: path.join(OUT_DIR, '08-cutoff-modal.png') });
-  await markScreenshot('08-cutoff-modal.png', [
+  await hostPage.screenshot({ path: path.join(OUT_DIR, '09-cutoff-modal.png') });
+  await markScreenshot('09-cutoff-modal.png', [
     await markerFromLocator(hostPage.locator('input[type="number"]').nth(0), 'Set advancing count'),
     await markerFromLocator(hostPage.getByRole('button', { name: /Save and continue/i }), 'Save and continue')
   ]);
@@ -211,8 +231,8 @@ async function main() {
 
   await hostPage.click('button:has-text("View Winner")');
   await hostPage.waitForTimeout(2000);
-  await hostPage.screenshot({ path: path.join(OUT_DIR, '09-winner-view.png') });
-  await markScreenshot('09-winner-view.png', [
+  await hostPage.screenshot({ path: path.join(OUT_DIR, '10-winner-view.png') });
+  await markScreenshot('10-winner-view.png', [
     await markerFromLocator(hostPage.getByRole('heading', { name: /Scotland/i }), 'Winner profile'),
     await markerFromLocator(hostPage.getByText(/Final average/i), 'Final metrics')
   ]);
@@ -221,8 +241,8 @@ async function main() {
   await setEnglishLightStorage(publicPage);
   await publicPage.goto(`${BASE_URL}/session/${sessionId}/results`, { waitUntil: 'domcontentloaded' });
   await publicPage.waitForTimeout(1500);
-  await publicPage.screenshot({ path: path.join(OUT_DIR, '10-public-results.png') });
-  await markScreenshot('10-public-results.png', [
+  await publicPage.screenshot({ path: path.join(OUT_DIR, '11-public-results.png') });
+  await markScreenshot('11-public-results.png', [
     await markerFromLocator(publicPage.getByText(/^Judges \(2\)$/i), 'Public summary'),
     await markerFromLocator(publicPage.getByText(/Official Winner/i), 'Published winner card')
   ]);

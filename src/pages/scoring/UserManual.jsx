@@ -24,34 +24,39 @@ const manualSteps = [
     image: '/manual/04-host-session-code.png'
   },
   {
-    title: '5) Judge Requests Access',
+    title: '5) Add from List (Chaos Import + Preview)',
+    text: 'Use Add from list to paste raw/chaotic text. The workflow cleans names, detects country/place per line, and shows a preview before you approve adding participants.',
+    image: '/manual/05-add-from-list.png'
+  },
+  {
+    title: '6) Judge Requests Access',
     text: 'A judge enters name + 6-character code suffix and joins. Their access stays pending until the host approves.',
-    image: '/manual/05-judge-awaiting-approval.png'
+    image: '/manual/06-judge-awaiting-approval.png'
   },
   {
-    title: '6) Host Approval Notification',
+    title: '7) Host Approval Notification',
     text: 'Hosts receive a pending-judge notification with direct Approve/Reject actions. If the original host becomes inactive, controls transfer automatically to the first approved judge; when the host returns, they can reclaim controls from a notification.',
-    image: '/manual/06-host-pending-notification.png'
+    image: '/manual/07-host-pending-notification.png'
   },
   {
-    title: '7) Score the Active Phase',
+    title: '8) Score the Active Phase',
     text: 'Approved judges can score the active phase. During live scoring, judges do not see live cut/elimination decisions from the current phase.',
-    image: '/manual/07-judge-scoring.png'
+    image: '/manual/08-judge-scoring.png'
   },
   {
-    title: '8) Native Cutoff Confirmation',
+    title: '9) Native Cutoff Confirmation',
     text: 'If the host tries to advance without cutoff, the app opens an in-app modal to define how many contestants advance before continuing.',
-    image: '/manual/08-cutoff-modal.png'
+    image: '/manual/09-cutoff-modal.png'
   },
   {
-    title: '9) Winner Screen',
+    title: '10) Winner Screen',
     text: 'When final cutoff is 1 and host reveals the winner, the board shows the winner summary and official final metrics.',
-    image: '/manual/09-winner-view.png'
+    image: '/manual/10-winner-view.png'
   },
   {
-    title: '10) Public Results View',
+    title: '11) Public Results View',
     text: 'Audience enters only the 6-character code suffix to open results. Public view shows closed phases and final winner when published.',
-    image: '/manual/10-public-results.png'
+    image: '/manual/11-public-results.png'
   }
 ];
 
@@ -78,7 +83,7 @@ export default function UserManual() {
               </p>
               <h1 className="text-3xl md:text-4xl font-black tracking-tight">Scoring App - Complete Usage Guide</h1>
               <p className="text-sm md:text-base text-app-muted/80 mt-3 max-w-3xl">
-                Updated workflow guide with splash entry, scoring modes, host approval alerts, native cutoff modal, and latest public-results behavior.
+                Updated workflow guide with splash entry, scoring modes, Add from list preview import, host approval alerts, native cutoff modal, and latest public-results behavior.
               </p>
             </div>
             <a
