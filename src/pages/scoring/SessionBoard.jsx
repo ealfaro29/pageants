@@ -1501,15 +1501,17 @@ export default function SessionBoard() {
               {session.type === 'Nacional' && !selectedParentCountry && (
                 <div className="relative mb-2" ref={searchRef}>
                   <div className="relative">
-                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && searchResults.length === 1) {
-                          e.preventDefault();
-                          setSelectedParentCountry(searchResults[0]);
-                          setSearchQuery('');
-                          setSearchResults([]);
-                        }
-                      }}
+                      <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                        onKeyDown={e => {
+                          const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+                          if (isEnter && searchResults.length === 1) {
+                            e.preventDefault();
+                            setSelectedParentCountry(searchResults[0]);
+                            setSearchQuery('');
+                            setSearchResults([]);
+                            e.currentTarget.blur();
+                          }
+                        }}
                       placeholder={t.board.addHostCountryFirst}
                       className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm" />
                     <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
@@ -1670,9 +1672,16 @@ export default function SessionBoard() {
                     <div className="relative">
                       <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && searchResults.length === 1) {
+                          const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+                          if (isEnter && searchResults.length === 1) {
                             e.preventDefault();
-                            addParticipant(searchResults[0]).catch(() => {});
+                            const selected = searchResults[0];
+                            setSearchQuery('');
+                            setSearchResults([]);
+                            e.currentTarget.blur();
+                            addParticipant(selected).catch(() => {
+                              setSearchQuery(selected?.name || '');
+                            });
                           }
                         }}
                         disabled={session.type === 'Nacional' && loadingCities}
