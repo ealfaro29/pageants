@@ -155,6 +155,8 @@ function normalizeParticipantName(value) {
     .toUpperCase();
 }
 
+const FLAG_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
+
 export default function SessionBoard() {
   useEffect(() => {
     const html = document.documentElement;
@@ -208,6 +210,8 @@ export default function SessionBoard() {
   const [bulkListTotalLines, setBulkListTotalLines] = useState(0);
   const [bulkListParseAttempted, setBulkListParseAttempted] = useState(false);
   const [isBulkApplying, setIsBulkApplying] = useState(false);
+  const [isSkippedReviewOpen, setIsSkippedReviewOpen] = useState(false);
+  const [bulkSkippedDrafts, setBulkSkippedDrafts] = useState([]);
   const searchRef = useRef(null);
   const scoreSaveTimersRef = useRef({});
   const judgeRegistrationAttemptedRef = useRef(false);
@@ -266,6 +270,8 @@ export default function SessionBoard() {
   useEffect(() => {
     setBulkListPreview([]);
     setBulkListSkipped([]);
+    setBulkSkippedDrafts([]);
+    setIsSkippedReviewOpen(false);
     setBulkListTotalLines(0);
     setBulkListParseAttempted(false);
   }, [session?.type, selectedParentCountry?.id]);
@@ -437,24 +443,60 @@ export default function SessionBoard() {
 
     setBulkListPreview(parsed);
     setBulkListSkipped(skipped);
+    setBulkSkippedDrafts(skipped.map((item, index) => ({
+      id: `skipped-${Date.now()}-${index}`,
+      line: item.line,
+      value: item.value
+    })));
+    setIsSkippedReviewOpen(false);
     setBulkListTotalLines(totalLines);
     setBulkListParseAttempted(true);
+  };
+
+  const updateSkippedDraftLine = (id, value) => {
+    setBulkSkippedDrafts(prev => prev.map(item => item.id === id ? { ...item, value } : item));
+  };
+
+  const removeSkippedDraftLine = (id) => {
+    setBulkSkippedDrafts(prev => prev.filter(item => item.id !== id));
+  };
+
+  const cleanManualSkippedLine = (rawLine) => {
+    const normalized = normalizeUpperLabel(
+      String(rawLine || '')
+        .replace(/^\s*\d+\s*[.)-]?\s*/, '')
+        .replace(/CE\s*#?\s*\d+/gi, '')
+        .trim()
+    );
+    if (!normalized) return null;
+
+    const foundFlags = String(rawLine || '').match(FLAG_REGEX) || [];
+    const fallbackFlag = session?.type === 'Global' ? (foundFlags[0] || '🏳️') : (selectedParentCountry?.flag || '');
+    return {
+      name: normalized,
+      id: `manual-${normalized.replace(/\s+/g, '').toUpperCase()}-${Math.random().toString(36).slice(2, 8)}`,
+      flag: fallbackFlag
+    };
+  };
+
+  const submitSkippedLinesAsIs = () => {
+    const manualItems = bulkSkippedDrafts
+      .map(item => cleanManualSkippedLine(item.value))
+      .filter(Boolean);
+
+    if (!manualItems.length) return;
+
+    setBulkListPreview(prev => [...prev, ...manualItems]);
+    setBulkListSkipped([]);
+    setBulkSkippedDrafts([]);
+    setIsSkippedReviewOpen(false);
   };
 
   const addParticipantsFromBulkList = async () => {
     if (!bulkListPreview.length || !session?.id) return;
 
     const participants = session.participants || [];
-    const existingNames = new Set(participants.map(participant => normalizeParticipantName(participant?.baseName || participant?.name)));
-    const candidates = [];
-
-    bulkListPreview.forEach(item => {
-      const normalizedName = normalizeParticipantName(item.name);
-      if (!normalizedName || existingNames.has(normalizedName)) return;
-      existingNames.add(normalizedName);
-      candidates.push(item);
-    });
-
+    const candidates = bulkListPreview.filter(item => normalizeParticipantName(item?.name));
     if (!candidates.length) return;
 
     setIsBulkApplying(true);
@@ -468,6 +510,8 @@ export default function SessionBoard() {
       setBulkListRawText('');
       setBulkListPreview([]);
       setBulkListSkipped([]);
+      setBulkSkippedDrafts([]);
+      setIsSkippedReviewOpen(false);
       setBulkListTotalLines(0);
       setBulkListParseAttempted(false);
       setIsBulkListOpen(false);
@@ -1441,7 +1485,16 @@ export default function SessionBoard() {
                           )}
                           {bulkListSkipped.length > 0 && (
                             <div className="mt-2">
-                              <p className="text-[11px] text-app-muted/80 uppercase tracking-wider">{t.board.bulkAddSkippedTitle}</p>
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] text-app-muted/80 uppercase tracking-wider">{t.board.bulkAddSkippedTitle}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsSkippedReviewOpen(true)}
+                                  className="scoring-btn-secondary rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                  {t.board.bulkAddReviewSkipped(bulkListSkipped.length)}
+                                </button>
+                              </div>
                               <div className="mt-1 max-h-20 overflow-auto space-y-1 custom-scrollbar">
                                 {bulkListSkipped.slice(0, 8).map(item => (
                                   <div key={`skip-${item.line}-${item.value}`} className="text-[11px] text-app-muted/70">
@@ -1904,6 +1957,66 @@ export default function SessionBoard() {
           <span className="text-[10px] font-bold uppercase tracking-tighter">{t.board.moreTitle || 'Más'}</span>
         </button>
       </div>
+
+      {isSkippedReviewOpen && (
+        <div className="fixed inset-0 z-[72] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-app-border bg-app-card p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-black text-app-text">{t.board.bulkAddSkippedModalTitle}</h3>
+              <button
+                type="button"
+                onClick={() => setIsSkippedReviewOpen(false)}
+                className="scoring-btn-secondary rounded-lg h-9 px-3 text-[11px] font-bold uppercase tracking-widest"
+              >
+                {t.board.bulkAddClose}
+              </button>
+            </div>
+            <p className="text-sm text-app-muted/80 mt-2">{t.board.bulkAddSkippedModalHelp}</p>
+            <div className="mt-4 max-h-[45vh] overflow-auto space-y-3 pr-1 custom-scrollbar">
+              {bulkSkippedDrafts.length === 0 ? (
+                <p className="text-sm text-app-muted/70">{t.board.bulkAddSkippedEmpty}</p>
+              ) : (
+                bulkSkippedDrafts.map(item => (
+                  <div key={item.id} className="rounded-xl border border-app-border/60 bg-app-card/35 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[10px] uppercase tracking-wider text-app-muted/70">{t.board.bulkAddSkippedLine(item.line)}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeSkippedDraftLine(item.id)}
+                        className="scoring-btn-secondary rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-red-300"
+                      >
+                        {t.board.bulkAddRemoveLine}
+                      </button>
+                    </div>
+                    <textarea
+                      value={item.value}
+                      onChange={event => updateSkippedDraftLine(item.id, event.target.value)}
+                      className="scoring-input w-full rounded-lg min-h-20 p-2.5 text-xs leading-5 resize-y"
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSkippedReviewOpen(false)}
+                className="scoring-btn-secondary rounded-lg h-10 px-3 text-[11px] font-bold uppercase tracking-widest"
+              >
+                {t.board.bulkAddCancelReview}
+              </button>
+              <button
+                type="button"
+                disabled={bulkSkippedDrafts.length === 0}
+                onClick={submitSkippedLinesAsIs}
+                className="scoring-btn-primary rounded-lg h-10 px-3 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
+              >
+                {t.board.bulkAddSubmitAsIs}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCutoffModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">

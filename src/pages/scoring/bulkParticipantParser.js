@@ -180,7 +180,6 @@ export function parseParticipantsFromBulkList({ rawText, sessionType, countries 
   const lines = mergeWrappedLines(rawText);
   const parsed = [];
   const skipped = [];
-  const seen = new Set();
   const countryLookup = buildCountryLookup(countries);
 
   lines.forEach((line, index) => {
@@ -208,9 +207,7 @@ export function parseParticipantsFromBulkList({ rawText, sessionType, countries 
     }
 
     const uniqueKey = normalizeToken(item.name);
-    if (!uniqueKey || seen.has(uniqueKey)) return;
-
-    seen.add(uniqueKey);
+    if (!uniqueKey) return;
     parsed.push(item);
   });
 
