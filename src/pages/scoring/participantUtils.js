@@ -1,5 +1,12 @@
 const COUNTER_SUFFIX_REGEX = /\s\((\d+)\)\s*$/;
 
+function normalizeParticipantLabel(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase();
+}
+
 function slugify(value) {
   return String(value || '')
     .trim()
@@ -9,7 +16,7 @@ function slugify(value) {
 }
 
 export function getBaseParticipantName(value) {
-  return String(value || '').trim().replace(COUNTER_SUFFIX_REGEX, '').trim();
+  return normalizeParticipantLabel(String(value || '').replace(COUNTER_SUFFIX_REGEX, ''));
 }
 
 function buildCountMap(participants = []) {

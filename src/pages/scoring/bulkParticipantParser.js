@@ -13,6 +13,13 @@ const COUNTRY_ALIASES = {
 
 const FLAG_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
 
+function toUpperLabel(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase();
+}
+
 function normalizeToken(value) {
   return String(value || '')
     .normalize('NFD')
@@ -103,9 +110,28 @@ function mergeWrappedLines(rawText) {
 
   const merged = [];
   const startsNewEntry = line => /^\d+\s*[.)-]?\s*/.test(line);
+  const isContinuationLine = line => {
+    const normalized = normalizeToken(line);
+    if (!normalized) return false;
+    if (/^CE\s*#?\s*\d+/i.test(line)) return true;
+    if (/^#\s*\d+/i.test(line)) return true;
+    if (/^[-–—]/.test(line)) return true;
+    if (/^\(?FIRST DEBUT\)?$/i.test(normalized)) return true;
+    return false;
+  };
 
   lines.forEach(line => {
-    if (startsNewEntry(line) || merged.length === 0) {
+    if (merged.length === 0) {
+      merged.push(line);
+      return;
+    }
+
+    if (startsNewEntry(line)) {
+      merged.push(line);
+      return;
+    }
+
+    if (!isContinuationLine(line)) {
       merged.push(line);
       return;
     }
@@ -127,14 +153,14 @@ function parseNationalName(head, line, selectedCountry) {
     return '';
   }
 
-  return base;
+  return toUpperLabel(base);
 }
 
 function parseGlobalName(line, head, countryLookup) {
   const country = resolveCountry(line, head, countryLookup);
   if (country) {
     return {
-      name: country.name,
+      name: toUpperLabel(country.name),
       id: country.id || country.name,
       flag: country.flag || ''
     };
@@ -144,7 +170,7 @@ function parseGlobalName(line, head, countryLookup) {
   if (!fallback) return null;
 
   return {
-    name: fallback,
+    name: toUpperLabel(fallback),
     id: fallback.replace(/\s+/g, '').toUpperCase(),
     flag: extractLineFlag(line) || '🏳️'
   };

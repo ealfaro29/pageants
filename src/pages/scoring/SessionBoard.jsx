@@ -26,8 +26,15 @@ import { buildNumberedParticipant } from './participantUtils';
 import { isTotalScoringMode } from './scoringMode';
 import { parseParticipantsFromBulkList } from './bulkParticipantParser';
 
+function normalizeUpperLabel(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase();
+}
+
 function getDefaultPhase(language) {
-  return { name: getDefaultPhaseName(0, language), cutoff: null, participantIds: null, absentParticipantIds: null, status: 'active' };
+  return { name: normalizeUpperLabel(getDefaultPhaseName(0, language)), cutoff: null, participantIds: null, absentParticipantIds: null, status: 'active' };
 }
 
 function normalizePhase(phase, index, currentPhaseIndex, language) {
@@ -40,7 +47,7 @@ function normalizePhase(phase, index, currentPhaseIndex, language) {
     : null;
 
   return {
-    name: typeof phase?.name === 'string' && phase.name.trim() ? phase.name.trim() : getDefaultPhaseName(index, language),
+    name: normalizeUpperLabel(typeof phase?.name === 'string' && phase.name.trim() ? phase.name : getDefaultPhaseName(index, language)),
     cutoff: Number.isFinite(cutoff) && cutoff > 0 ? cutoff : null,
     participantIds: participantIds?.length ? participantIds : null,
     absentParticipantIds: absentParticipantIds?.length ? absentParticipantIds : null,
@@ -294,7 +301,7 @@ export default function SessionBoard() {
     const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
     const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
     const currentPhaseName = normalizedPhases[safePhaseIndex]?.name || getDefaultPhaseName(safePhaseIndex, currentLanguage);
-    setPhaseNameDraft(currentPhaseName);
+    setPhaseNameDraft(normalizeUpperLabel(currentPhaseName));
   }, [session, currentLanguage]);
 
   // Session + scores listener
@@ -476,7 +483,7 @@ export default function SessionBoard() {
   };
 
   const updatePhaseName = async (name) => {
-    const normalizedName = String(name || '').trim();
+    const normalizedName = normalizeUpperLabel(name);
     if (!normalizedName || normalizedName === currentPhase.name) return;
     const nextPhases = [...phases];
     nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name: normalizedName };
@@ -484,11 +491,12 @@ export default function SessionBoard() {
   };
 
   const commitPhaseName = () => {
-    const normalizedName = String(phaseNameDraft || '').trim();
+    const normalizedName = normalizeUpperLabel(phaseNameDraft);
     if (!normalizedName) {
       setPhaseNameDraft(currentPhase.name);
       return;
     }
+    setPhaseNameDraft(normalizedName);
     updatePhaseName(normalizedName).catch(() => {
       setPhaseNameDraft(currentPhase.name);
     });
