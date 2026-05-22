@@ -381,6 +381,30 @@ export default function SessionBoard() {
     }).catch(() => {});
   }, [sessionId, session, judgeName]);
 
+  useEffect(() => {
+    if (!sessionId || !session || !judgeName) return;
+
+    const hostName = session.host;
+    const currentControlHost = session.controlHost || hostName;
+    const isOriginalHostNow = normalizeJudgeIdentity(hostName) === normalizeJudgeIdentity(judgeName);
+    const hasTransferredControlsNow = normalizeJudgeIdentity(currentControlHost) !== normalizeJudgeIdentity(hostName);
+
+    if (!isOriginalHostNow || !hasTransferredControlsNow) {
+      hostAutoReclaimAttemptedRef.current = false;
+      return;
+    }
+    if (hostAutoReclaimAttemptedRef.current) return;
+
+    hostAutoReclaimAttemptedRef.current = true;
+    updateDoc(doc(db, "sessions", session.id), {
+      controlHost: hostName,
+      controlHostAssignedAt: Date.now(),
+      hostLastSeenAt: Date.now()
+    }).catch(() => {
+      hostAutoReclaimAttemptedRef.current = false;
+    });
+  }, [sessionId, session, judgeName]);
+
   // --- Actions ---
   const canCurrentJudgeVote = () => {
     if (!isJudgeApproved) return false;
@@ -1090,19 +1114,6 @@ export default function SessionBoard() {
   const showTransferredControlsNotice = isHost && hasTransferredControls;
   const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
 
-  useEffect(() => {
-    if (!sessionId || !session) return;
-    if (!isOriginalHost || !hasTransferredControls) {
-      hostAutoReclaimAttemptedRef.current = false;
-      return;
-    }
-    if (hostAutoReclaimAttemptedRef.current) return;
-
-    hostAutoReclaimAttemptedRef.current = true;
-    reclaimHostControls().catch(() => {
-      hostAutoReclaimAttemptedRef.current = false;
-    });
-  }, [sessionId, session, isOriginalHost, hasTransferredControls]);
   const completedPhaseIndexes = phases
     .map((phase, idx) => (phase.status === 'completed' ? idx : null))
     .filter(idx => idx !== null);
