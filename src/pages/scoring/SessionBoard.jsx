@@ -1175,19 +1175,19 @@ export default function SessionBoard() {
         <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
           {isHost && (
             <>
-              <button onClick={openPublicResults} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.openInNewTab} aria-label={t.board.openInNewTab}>
+              <button onClick={openPublicResults} className="scoring-btn-icon hidden lg:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.openInNewTab} aria-label={t.board.openInNewTab}>
                 <ExternalLink className="w-3 h-3" />
                 {t.board.publicResultsLabel}
               </button>
-              <button onClick={copyPublicResultsLink} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.copyPublicLink} aria-label={t.board.copyPublicLink}>
+              <button onClick={copyPublicResultsLink} className="scoring-btn-icon hidden lg:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium" title={t.board.copyPublicLink} aria-label={t.board.copyPublicLink}>
                 {resultsLinkCopied ? <Check className="w-3 h-3 text-green-500" /> : <Link2 className="w-3 h-3" />}
                 {resultsLinkCopied ? t.board.linkCopied : t.board.copyPublicLink}
               </button>
-              <button onClick={() => setIsSettingsModalOpen(true)} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium">
+              <button onClick={() => setIsSettingsModalOpen(true)} className="scoring-btn-icon hidden lg:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium">
                 <Settings2 className="w-3 h-3" />
                 {t.board.settingsButton}
               </button>
-              <button onClick={() => setIsReportModalOpen(true)} className="scoring-btn-icon flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium">
+              <button onClick={() => setIsReportModalOpen(true)} className="scoring-btn-icon hidden lg:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium">
                 <BarChart3 className="w-3 h-3" />
                 {t.board.reportsButton}
               </button>
@@ -1198,7 +1198,7 @@ export default function SessionBoard() {
             {codeCopied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-app-muted">{judgeName}</span>
+            <span className="text-sm text-app-muted max-w-[120px] truncate">{judgeName}</span>
             {isHost && <span className="scoring-badge text-[10px] px-1.5 py-0.5 rounded">{t.board.hostBadge}</span>}
             <button onClick={() => {
               const newTheme = theme === 'dark' ? 'light' : 'dark';
@@ -1276,7 +1276,7 @@ export default function SessionBoard() {
       )}
 
       {/* MAIN CONTENT AREA with GAP */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 pb-20 lg:pb-4 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+5rem)] lg:pb-4 overflow-hidden">
         
         {/* LEFT: TABLERO DE PUNTUACIÓN (CARD) - 60% */}
         <div className={`lg:w-[60%] flex flex-col min-h-0 bg-app-card rounded-2xl shadow-xl border border-app-border overflow-hidden ${activeTab !== 'scoring' ? 'hidden lg:flex' : 'flex'} ${isSessionComplete ? 'bg-gradient-to-br from-app-card to-app-border/10' : ''}`}>
@@ -1908,6 +1908,15 @@ export default function SessionBoard() {
                   {t.board.settingsButton}
                 </button>
               )}
+              {isHost && (
+                <button
+                  onClick={() => setIsReportModalOpen(true)}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-xl border border-app-border bg-app-border/10 text-sm font-bold uppercase tracking-widest"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  {t.board.reportsButton}
+                </button>
+              )}
 
               <button 
                 onClick={() => { localStorage.removeItem('judgeName'); navigate('/'); }}
@@ -1926,7 +1935,10 @@ export default function SessionBoard() {
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-app-card/95 backdrop-blur-lg border-t border-app-border flex items-center justify-around py-1.5 md:py-3 px-2 z-[60] shadow-[0_-10px_20px_rgba(0,0,0,0.1)]">
+      <div
+        className="lg:hidden fixed bottom-0 left-0 right-0 bg-app-card/95 backdrop-blur-lg border-t border-app-border flex items-center justify-around py-1.5 md:py-3 px-2 z-[60] shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.375rem)' }}
+      >
         <button 
           onClick={() => setActiveTab('scoring')} 
           className={`flex flex-col items-center gap-1 min-w-[70px] transition-colors ${activeTab === 'scoring' ? 'text-app-accent' : 'text-app-muted/60'}`}

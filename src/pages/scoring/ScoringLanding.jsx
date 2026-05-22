@@ -614,7 +614,10 @@ export default function ScoringLanding() {
           )}
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 border-t border-app-border/60 bg-app-card/95 backdrop-blur-lg px-2 py-2 z-30">
+        <nav
+          className="fixed bottom-0 left-0 right-0 border-t border-app-border/60 bg-app-card/95 backdrop-blur-lg px-2 py-2 z-30"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+        >
           <div className="grid grid-cols-5 gap-1">
             {[
               { key: 'home', label: t.landing.mobileHome, icon: House },
@@ -643,7 +646,7 @@ export default function ScoringLanding() {
 
       {showWelcomeSplash && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md">
-          <div className="relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-app-border/80 bg-app-card/60 backdrop-blur-xl shadow-[0_40px_80px_rgba(0,0,0,0.55)]">
+          <div className="relative w-full max-w-3xl max-h-[92vh] overflow-auto rounded-[2rem] border border-app-border/80 bg-app-card/60 backdrop-blur-xl shadow-[0_40px_80px_rgba(0,0,0,0.55)]">
             <button
               type="button"
               onClick={() => setShowWelcomeSplash(false)}
@@ -653,7 +656,7 @@ export default function ScoringLanding() {
               <X className="w-4 h-4" />
             </button>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(251,191,36,0.2),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(255,255,255,0.1),transparent_35%)] pointer-events-none" />
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[360px]">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 min-h-[320px] md:min-h-[360px]">
               <div className="md:col-span-5 relative min-h-[210px] md:min-h-full">
                 <img
                   src="/angel-muse-doll.png"
