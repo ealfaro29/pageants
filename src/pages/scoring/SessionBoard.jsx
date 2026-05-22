@@ -223,6 +223,7 @@ export default function SessionBoard() {
   const [bulkSkippedDrafts, setBulkSkippedDrafts] = useState([]);
   const searchRef = useRef(null);
   const judgeRegistrationAttemptedRef = useRef(false);
+  const hostAutoReclaimAttemptedRef = useRef(false);
   const fallbackLanguage = getStoredScoringLanguage();
   const currentLanguage = normalizeScoringLanguage(session?.language || fallbackLanguage);
   const isTotalScoring = isTotalScoringMode(session?.scoringMode);
@@ -303,6 +304,7 @@ export default function SessionBoard() {
 
   useEffect(() => {
     judgeRegistrationAttemptedRef.current = false;
+    hostAutoReclaimAttemptedRef.current = false;
   }, [sessionId, judgeName]);
 
   useEffect(() => {
@@ -587,6 +589,12 @@ export default function SessionBoard() {
     updatePhaseName(normalizedName).catch(() => {
       setPhaseNameDraft(currentPhase.name);
     });
+  };
+
+  const removeParticipantFromTouch = (event, participantId) => {
+    event.preventDefault();
+    event.stopPropagation();
+    removeParticipant(participantId).catch(() => {});
   };
 
   const updatePhaseCutoff = async (value) => {
@@ -1081,6 +1089,20 @@ export default function SessionBoard() {
   const hasTransferredControls = normalizeJudgeIdentity(controlHost) !== normalizeJudgeIdentity(session.host);
   const showTransferredControlsNotice = isHost && hasTransferredControls;
   const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
+
+  useEffect(() => {
+    if (!sessionId || !session) return;
+    if (!isOriginalHost || !hasTransferredControls) {
+      hostAutoReclaimAttemptedRef.current = false;
+      return;
+    }
+    if (hostAutoReclaimAttemptedRef.current) return;
+
+    hostAutoReclaimAttemptedRef.current = true;
+    reclaimHostControls().catch(() => {
+      hostAutoReclaimAttemptedRef.current = false;
+    });
+  }, [sessionId, session, isOriginalHost, hasTransferredControls]);
   const completedPhaseIndexes = phases
     .map((phase, idx) => (phase.status === 'completed' ? idx : null))
     .filter(idx => idx !== null);
@@ -1401,10 +1423,11 @@ export default function SessionBoard() {
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-3 md:gap-4 mt-2.5 md:mt-3 flex-wrap">
+            <div className="mt-2.5 md:mt-3 space-y-2.5">
               {isHost ? (
                 <input
-                  type="text" value={phaseNameDraft}
+                  type="text"
+                  value={phaseNameDraft}
                   onChange={e => setPhaseNameDraft(e.target.value)}
                   onBlur={commitPhaseName}
                   onKeyDown={e => {
@@ -1418,14 +1441,14 @@ export default function SessionBoard() {
                       e.currentTarget.blur();
                     }
                   }}
-                  className="bg-transparent text-base sm:text-xl font-bold text-app-text focus:outline-none border-b border-transparent focus:border-app-border transition-colors flex-1 min-w-0"
+                  className="scoring-input w-full h-10 sm:h-11 px-3 text-base sm:text-xl font-bold text-app-text border-app-border/70 bg-app-card/40 rounded-lg min-w-0 cursor-text"
                   placeholder={t.board.phaseNamePlaceholder}
                 />
               ) : (
                 <h2 className="text-base sm:text-xl font-bold text-app-text">{currentPhase.name}</h2>
               )}
               {isHost && (
-                <div className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
+                <div className="w-full sm:w-fit rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-app-muted/90 uppercase tracking-widest font-bold">{t.board.classifyLabel}</span>
                     <span className="inline-flex h-1.5 w-1.5 rounded-full bg-app-accent" />
@@ -1808,7 +1831,14 @@ export default function SessionBoard() {
                             {isHost && (
                               <td className="py-1.5 md:py-3 pr-2 md:pr-3 text-center">
                                 {currentPhaseIndex === 0 ? (
-                                  <button onClick={() => removeParticipant(p.id)} className="text-app-muted/30 transition-colors p-1 hover:opacity-80" style={{ color: 'var(--color-app-danger)' }} title={t.board.removeParticipant} aria-label={`${t.board.removeParticipant}: ${p.name}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeParticipant(p.id).catch(() => {})}
+                                    onPointerUp={event => removeParticipantFromTouch(event, p.id)}
+                                    className="inline-flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-lg border border-app-danger/35 bg-app-danger/10 text-app-danger transition-colors hover:bg-app-danger/20 touch-manipulation"
+                                    title={t.board.removeParticipant}
+                                    aria-label={`${t.board.removeParticipant}: ${p.name}`}
+                                  >
                                     <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                   </button>
                                 ) : (
