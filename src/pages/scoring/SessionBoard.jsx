@@ -23,6 +23,7 @@ import {
   persistScoringTheme
 } from './scoringTheme';
 import { buildNumberedParticipant } from './participantUtils';
+import { isTotalScoringMode } from './scoringMode';
 
 function getDefaultPhase(language) {
   return { name: getDefaultPhaseName(0, language), cutoff: null, participantIds: null, absentParticipantIds: null, status: 'active' };
@@ -104,6 +105,24 @@ function judgeListIncludes(list, judgeName) {
   return Array.isArray(list) && list.some(entry => normalizeJudgeIdentity(entry) === normalizedJudge);
 }
 
+function getParticipantScoreStatsByPhases(participantId, phaseIndexes, scoreMap) {
+  let total = 0;
+  let votes = 0;
+
+  phaseIndexes.forEach(phaseIdx => {
+    const participantScores = scoreMap[`phase_${phaseIdx}`]?.[participantId] || {};
+    const values = Object.values(participantScores).filter(value => value !== null && value !== undefined);
+    total += values.reduce((sum, value) => sum + value, 0);
+    votes += values.length;
+  });
+
+  return {
+    total,
+    votes,
+    average: votes > 0 ? total / votes : 0
+  };
+}
+
 export default function SessionBoard() {
   useEffect(() => {
     const html = document.documentElement;
@@ -151,6 +170,7 @@ export default function SessionBoard() {
   const judgeRegistrationAttemptedRef = useRef(false);
   const fallbackLanguage = getStoredScoringLanguage();
   const currentLanguage = normalizeScoringLanguage(session?.language || fallbackLanguage);
+  const isTotalScoring = isTotalScoringMode(session?.scoringMode);
   const t = scoringCopy[currentLanguage];
 
   useEffect(() => {
@@ -520,7 +540,27 @@ export default function SessionBoard() {
     }
 
     const rankedCurrentParticipants = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
-    const winner = rankedCurrentParticipants[0];
+    const scoreSnapshot = { ...scores, [phaseKey]: phaseScores };
+    const winnerCandidates = rankedCurrentParticipants.map(participant => {
+      const cumulativeStats = getParticipantScoreStatsByPhases(
+        participant.id,
+        Array.from({ length: currentPhaseIndex + 1 }, (_, idx) => idx),
+        scoreSnapshot
+      );
+      return {
+        ...participant,
+        cumulativeTotal: cumulativeStats.total,
+        cumulativeAverage: cumulativeStats.average
+      };
+    });
+
+    const winner = isTotalScoring
+      ? winnerCandidates.sort((a, b) => (
+        b.cumulativeTotal - a.cumulativeTotal
+        || b.avg - a.avg
+        || a.name.localeCompare(b.name)
+      ))[0]
+      : rankedCurrentParticipants[0];
     const nextPhases = [...phases];
 
     nextPhases[currentPhaseIndex] = {
@@ -762,43 +802,53 @@ export default function SessionBoard() {
     setUndoAttempted(false);
   };
 
-  // Global results: track all participants + their elimination phase
-  const globalResults = allParticipants.map(p => {
-    // Find the last phase this participant was active in
+  // Results panel: adapt scoring metric according to session scoring mode
+  const globalResults = allParticipants.map(participant => {
     let lastActivePhase = 0;
     let eliminated = false;
-    let totalAvg = 0;
-    let totalVotes = 0;
 
-    for (let i = 0; i <= currentPhaseIndex; i++) {
-      const phaseParticipants = getPhaseParticipants(i);
-      const isInPhase = phaseParticipants.find(pp => pp.id === p.id);
+    for (let phaseIdx = 0; phaseIdx <= currentPhaseIndex; phaseIdx++) {
+      const isInPhase = getPhaseParticipants(phaseIdx).some(currentParticipant => currentParticipant.id === participant.id);
       if (!isInPhase) {
         eliminated = true;
         break;
       }
-      lastActivePhase = i;
-      const pk = `phase_${i}`;
-      const ps = scores[pk]?.[p.id] || {};
-      const vals = Object.values(ps).filter(v => v !== null && v !== undefined);
-      if (vals.length > 0) {
-        totalAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
-        totalVotes += vals.length;
-      }
+      lastActivePhase = phaseIdx;
     }
 
+    const aggregateStats = getParticipantScoreStatsByPhases(
+      participant.id,
+      Array.from({ length: currentPhaseIndex + 1 }, (_, idx) => idx),
+      scores
+    );
+    const currentPhaseStats = getParticipantScoreStatsByPhases(participant.id, [currentPhaseIndex], scores);
     const isCurrentlyActive = !eliminated;
-    return { ...p, lastActivePhase, eliminated, totalAvg, totalVotes, isCurrentlyActive };
+    const displayScore = isTotalScoring ? aggregateStats.total : currentPhaseStats.average;
+
+    return {
+      ...participant,
+      lastActivePhase,
+      eliminated,
+      isCurrentlyActive,
+      aggregateTotal: aggregateStats.total,
+      aggregateVotes: aggregateStats.votes,
+      aggregateAverage: aggregateStats.average,
+      currentPhaseAverage: currentPhaseStats.average,
+      displayScore
+    };
   }).sort((a, b) => {
     if (session.winnerId === a.id && session.winnerId !== b.id) return -1;
     if (session.winnerId !== a.id && session.winnerId === b.id) return 1;
     if (a.isCurrentlyActive && !b.isCurrentlyActive) return -1;
     if (!a.isCurrentlyActive && b.isCurrentlyActive) return 1;
-    return b.totalAvg - a.totalAvg;
+    return b.displayScore - a.displayScore || a.name.localeCompare(b.name);
   });
   const winner = session.winnerId ? participantMap.get(session.winnerId) : null;
   const winnerResult = session.winnerId ? globalResults.find(participant => participant.id === session.winnerId) : null;
   const winnerPhaseName = phases[session.winnerPhaseIndex]?.name || currentPhase.name;
+  const winnerScoreValue = winnerResult
+    ? (isTotalScoring ? winnerResult.aggregateTotal : winnerResult.currentPhaseAverage)
+    : 0;
 
   const canAdvance = !isSessionComplete && currentParticipants.length > 0;
 
@@ -1118,8 +1168,8 @@ export default function SessionBoard() {
                   {winnerResult && (
                     <div className="mt-8 grid w-full max-w-sm grid-cols-2 gap-3">
                       <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerScore}</p>
-                        <p className="mt-2 text-3xl font-mono text-app-text">{winnerResult.totalAvg.toFixed(2)}</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{isTotalScoring ? (t.board.winnerScoreTotal || t.board.winnerScore) : (t.board.winnerScorePhase || t.board.winnerScore)}</p>
+                        <p className="mt-2 text-3xl font-mono text-app-text">{winnerScoreValue.toFixed(2)}</p>
                       </div>
                       <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
                         <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerPhaseLabel}</p>
@@ -1307,8 +1357,11 @@ export default function SessionBoard() {
         {/* RIGHT PANEL: RESULTADOS GLOBALES (CARD) - 40% */}
         <div className={`${activeTab !== 'results' ? 'hidden lg:flex' : 'flex'} lg:w-[40%] flex flex-col overflow-hidden shrink-0 bg-app-card rounded-2xl shadow-xl border border-app-border`}>
           <div className="px-6 py-5 border-b border-app-border/50 bg-app-card shrink-0">
-            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{t.board.globalResults}</h3>
+            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{isTotalScoring ? (t.board.resultsPanelTitleTotal || t.board.globalResults) : (t.board.resultsPanelTitlePhase || t.board.globalResults)}</h3>
             <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(p => p.status === 'completed').length)}</p>
+            <p className="text-[10px] text-app-muted/50 mt-1">
+              {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
+            </p>
           </div>
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
@@ -1334,7 +1387,10 @@ export default function SessionBoard() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm font-mono font-bold ${eliminated ? 'text-app-muted/30' : 'text-app-text'}`}>{p.totalAvg.toFixed(2)}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-app-muted/50 mb-0.5">
+                        {isTotalScoring ? (t.board.resultsPanelMetricTotal || t.board.total) : (t.board.resultsPanelMetricPhase || t.board.average)}
+                      </p>
+                      <p className={`text-sm font-mono font-bold ${eliminated ? 'text-app-muted/30' : 'text-app-text'}`}>{p.displayScore.toFixed(2)}</p>
                     </div>
                   </div>
                 );

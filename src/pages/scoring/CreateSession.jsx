@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getDefaultPhaseName, getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
+import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
 
 export default function CreateSession() {
   const [theme] = useState(getStoredScoringTheme());
@@ -14,6 +15,7 @@ export default function CreateSession() {
   const [judgeName, setJudgeName] = useState('');
   const [sessionName, setSessionName] = useState('');
   const [type, setType] = useState('Global');
+  const [scoringMode, setScoringMode] = useState(SCORING_MODE_TOTAL);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [language, setLanguage] = useState(getStoredScoringLanguage());
@@ -39,6 +41,7 @@ export default function CreateSession() {
       id: sessionId,
       name: sessionName.trim(),
       type,
+      scoringMode,
       language,
       host: judgeName.trim(),
       currentPhaseIndex: 0,
@@ -106,6 +109,27 @@ export default function CreateSession() {
                 <option value="Global">{t.create.globalOption}</option>
                 <option value="Nacional">{t.create.nationalOption}</option>
               </select>
+            </div>
+            <div className="rounded-lg border border-app-border/60 bg-app-card/35 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80 mb-2">{t.create.scoringModeLabel}</p>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setScoringMode(SCORING_MODE_TOTAL)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${scoringMode === SCORING_MODE_TOTAL ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                >
+                  <p className="text-xs font-bold text-app-text">{t.create.scoringModeTotal}</p>
+                  <p className="text-[10px] text-app-muted/80 mt-1">{t.create.scoringModeTotalDescription}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScoringMode(SCORING_MODE_PHASE)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${scoringMode === SCORING_MODE_PHASE ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                >
+                  <p className="text-xs font-bold text-app-text">{t.create.scoringModePhase}</p>
+                  <p className="text-[10px] text-app-muted/80 mt-1">{t.create.scoringModePhaseDescription}</p>
+                </button>
+              </div>
             </div>
 
             {error && (

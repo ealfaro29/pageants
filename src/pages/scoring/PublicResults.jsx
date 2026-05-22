@@ -17,6 +17,7 @@ import {
   getStoredScoringTheme,
   persistScoringTheme
 } from './scoringTheme';
+import { isTotalScoringMode } from './scoringMode';
 
 const OVERALL_RESULTS_VIEW = -2;
 const WINNER_VIEW = -1;
@@ -118,6 +119,7 @@ export default function PublicResults() {
   }, [sessionId]);
 
   const {
+    isTotalScoring,
     phases,
     currentPhaseIndex,
     currentPhase,
@@ -136,6 +138,7 @@ export default function PublicResults() {
   } = useMemo(() => {
     if (!session) {
       return {
+        isTotalScoring: true,
         phases: [],
         currentPhaseIndex: 0,
         currentPhase: null,
@@ -156,6 +159,7 @@ export default function PublicResults() {
 
     const allParticipants = session.participants || [];
     const judgesList = session.judges || [];
+    const scoringModeIsTotal = isTotalScoringMode(session.scoringMode);
     const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
     const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
     const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
@@ -205,17 +209,18 @@ export default function PublicResults() {
     const totalPossibleVotes = visible.length * judgesList.length;
     const overall = allParticipants
       .map(participant => {
-        const phaseBreakdown = visible.map((phase, idx) => {
-          const phaseParticipants = getPhaseParticipants(idx);
+        const phaseBreakdown = completedPhaseIndexes.map(phaseIdx => {
+          const phase = normalizedPhases[phaseIdx];
+          const phaseParticipants = getPhaseParticipants(phaseIdx);
           const isInPhase = phaseParticipants.some(currentParticipant => currentParticipant.id === participant.id);
           if (!isInPhase) {
-            return { total: null, voteCount: 0, participated: false };
+            return { phaseName: phase.name, total: null, voteCount: 0, participated: false };
           }
 
-          const participantScores = scores[`phase_${idx}`]?.[participant.id] || {};
+          const participantScores = scores[`phase_${phaseIdx}`]?.[participant.id] || {};
           const values = Object.values(participantScores).filter(value => value !== null && value !== undefined);
           const total = values.reduce((sum, value) => sum + value, 0);
-          return { total, voteCount: values.length, participated: true };
+          return { phaseName: phase.name, total, voteCount: values.length, participated: true };
         });
 
         const overallTotal = phaseBreakdown.reduce((sum, phaseResult) => sum + (phaseResult.total || 0), 0);
@@ -248,6 +253,7 @@ export default function PublicResults() {
     const sessionWinner = session.winnerId ? participantMap.get(session.winnerId) : null;
 
     return {
+      isTotalScoring: scoringModeIsTotal,
       phases: normalizedPhases,
       currentPhaseIndex: safePhaseIndex,
       currentPhase: activePhase,
@@ -272,8 +278,15 @@ export default function PublicResults() {
       setSelectedView(WINNER_VIEW);
       return;
     }
-    setSelectedView(OVERALL_RESULTS_VIEW);
-  }, [session, winner]);
+    if (isTotalScoring) {
+      setSelectedView(OVERALL_RESULTS_VIEW);
+      return;
+    }
+    const latestCompletedPhase = visiblePhaseIndexes.length > 0
+      ? visiblePhaseIndexes[visiblePhaseIndexes.length - 1]
+      : OVERALL_RESULTS_VIEW;
+    setSelectedView(latestCompletedPhase);
+  }, [session, winner, isTotalScoring, visiblePhaseIndexes]);
 
   if (loading) {
     return (
@@ -294,9 +307,15 @@ export default function PublicResults() {
   }
 
   const isWinnerView = selectedView === WINNER_VIEW;
-  const isOverallView = selectedView === OVERALL_RESULTS_VIEW;
+  const isOverallView = isTotalScoring && selectedView === OVERALL_RESULTS_VIEW;
   const winnerOverallResult = winner ? overallResults.find(participant => participant.id === winner.id) : null;
   const showTrackTotalAndAverage = judges.length > 1;
+  const winnerPhaseIndex = Number.isInteger(session?.winnerPhaseIndex) ? session.winnerPhaseIndex : currentPhaseIndex;
+  const winnerPhaseScores = winner ? (scores[`phase_${winnerPhaseIndex}`]?.[winner.id] || {}) : {};
+  const winnerPhaseValues = Object.values(winnerPhaseScores).filter(value => value !== null && value !== undefined);
+  const winnerPhaseAverage = winnerPhaseValues.length > 0
+    ? winnerPhaseValues.reduce((sum, value) => sum + value, 0) / winnerPhaseValues.length
+    : 0;
   const publicJudgeColumns = judges.map((judgeName, idx) => ({
     judgeName,
     label: t.board.anonymousJudgeLabel ? t.board.anonymousJudgeLabel(idx) : `Judge ${idx + 1}`,
@@ -348,6 +367,9 @@ export default function PublicResults() {
               )}
             </div>
           </div>
+          <p className="mt-3 text-[11px] text-app-muted/70">
+            {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
+          </p>
         </header>
 
         {session.status !== 'completed' && (
@@ -374,15 +396,17 @@ export default function PublicResults() {
               </button>
               );
             })}
-            <button
-              onClick={() => setSelectedView(OVERALL_RESULTS_VIEW)}
-              className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
-                isOverallView ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
-              }`}
-            >
-              <Trophy className="w-3.5 h-3.5 inline mr-1" />
-              {t.board.overallResultsTab}
-            </button>
+            {isTotalScoring && (
+              <button
+                onClick={() => setSelectedView(OVERALL_RESULTS_VIEW)}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors mr-2 ${
+                  isOverallView ? 'scoring-badge-active' : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5 inline mr-1" />
+                {t.board.overallResultsTab}
+              </button>
+            )}
             {session.status === 'completed' && winner && (
               <button
                 onClick={() => setSelectedView(WINNER_VIEW)}
@@ -413,30 +437,30 @@ export default function PublicResults() {
                   </div>
                   <p className="text-xs uppercase tracking-[0.45em] text-amber-200/70">{t.board.winnerTitle}</p>
                   <h2 className="mt-3 text-4xl font-black tracking-tight text-app-text md:text-5xl">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
-                  {winnerOverallResult && (
+                  {isTotalScoring && winnerOverallResult && (
                     <>
                       <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-border/70 bg-app-card/55 px-5 py-5 text-left">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
-                      <div className="overflow-hidden rounded-xl border border-app-border/60">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
-                              <th className="px-3 py-2 text-left">Phase</th>
-                              {showTrackTotalAndAverage && <th className="px-3 py-2 text-right">{t.board.total}</th>}
-                              <th className="px-3 py-2 text-right">{t.board.average}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
-                              <tr key={`${phaseResult.phaseName}-${idx}`} className="border-t border-app-border/50 bg-app-card/35">
-                                <td className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName || `Phase ${idx + 1}`}</td>
-                                {showTrackTotalAndAverage && <td className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</td>}
-                                <td className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? ((phaseResult.voteCount || 0) > 0 ? (phaseResult.total / phaseResult.voteCount).toFixed(2) : '0.00') : '0.00'}</td>
+                        <div className="overflow-hidden rounded-xl border border-app-border/60">
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
+                                <th className="px-3 py-2 text-left">Phase</th>
+                                {showTrackTotalAndAverage && <th className="px-3 py-2 text-right">{t.board.total}</th>}
+                                <th className="px-3 py-2 text-right">{t.board.average}</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
+                                <tr key={`${phaseResult.phaseName}-${idx}`} className="border-t border-app-border/50 bg-app-card/35">
+                                  <td className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName || `Phase ${idx + 1}`}</td>
+                                  {showTrackTotalAndAverage && <td className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</td>}
+                                  <td className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? ((phaseResult.voteCount || 0) > 0 ? (phaseResult.total / phaseResult.voteCount).toFixed(2) : '0.00') : '0.00'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                       <div className="mt-6 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
@@ -449,6 +473,18 @@ export default function PublicResults() {
                         </div>
                       </div>
                     </>
+                  )}
+                  {!isTotalScoring && (
+                    <div className="mt-6 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
+                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerScorePhase || t.board.winnerScore}</p>
+                        <p className="mt-2 text-3xl font-mono text-app-text">{winnerPhaseAverage.toFixed(2)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
+                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerPhaseLabel}</p>
+                        <p className="mt-2 text-base text-app-text">{winnerPhaseName || currentPhase?.name}</p>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

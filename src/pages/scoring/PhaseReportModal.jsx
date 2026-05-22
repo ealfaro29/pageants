@@ -3,6 +3,7 @@ import { X, Download, ImageIcon, Crown } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent } from './scoringTheme';
+import { isTotalScoringMode } from './scoringMode';
 
 export default function PhaseReportModal({
   isOpen,
@@ -24,6 +25,7 @@ export default function PhaseReportModal({
   const [accentColor] = useState(getStoredScoringAccent());
   const reportRef = useRef(null);
   const t = scoringCopy[language] || scoringCopy['es'];
+  const isTotalScoring = isTotalScoringMode(session?.scoringMode);
   const OVERALL_RESULTS_VIEW = -2;
   const WINNER_VIEW = -1;
 
@@ -38,7 +40,7 @@ export default function PhaseReportModal({
   const judges = session?.judges || [];
   const allParticipants = session?.participants || [];
   const visiblePhases = phases.slice(0, currentPhaseIndex + 1);
-  const isOverallView = selectedPhaseIdx === OVERALL_RESULTS_VIEW;
+  const isOverallView = isTotalScoring && selectedPhaseIdx === OVERALL_RESULTS_VIEW;
   const isWinnerView = selectedPhaseIdx === WINNER_VIEW;
   const selectedPhase = selectedPhaseIdx >= 0 ? phases[selectedPhaseIdx] : null;
   const participants = selectedPhaseIdx >= 0 ? getPhaseParticipants(selectedPhaseIdx) : [];
@@ -92,6 +94,12 @@ export default function PhaseReportModal({
     ));
   const showTrackTotalAndAverage = judges.length > 1;
   const winnerOverallResult = winner ? overallResults.find(participant => participant.id === winner.id) : null;
+  const winnerPhaseIndex = Number.isInteger(session?.winnerPhaseIndex) ? session.winnerPhaseIndex : currentPhaseIndex;
+  const winnerPhaseScores = winner ? (scores[`phase_${winnerPhaseIndex}`]?.[winner.id] || {}) : {};
+  const winnerPhaseValues = Object.values(winnerPhaseScores).filter(value => value !== null && value !== undefined);
+  const winnerPhaseAverage = winnerPhaseValues.length > 0
+    ? winnerPhaseValues.reduce((sum, value) => sum + value, 0) / winnerPhaseValues.length
+    : 0;
   
   // Calculate elimination line for the table
   const cutoffLimit = selectedPhase?.cutoff || rankedParticipants.length;
@@ -244,16 +252,18 @@ export default function PhaseReportModal({
               {ph.name}
             </button>
           ))}
-          <button
-            onClick={() => setSelectedPhaseIdx(OVERALL_RESULTS_VIEW)}
-            className={`px-5 py-4 text-sm font-medium rounded-lg whitespace-nowrap transition-colors mr-2 ${
-              isOverallView
-                ? 'scoring-badge-active'
-                : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
-            }`}
-          >
-            {t.board.overallResultsTab}
-          </button>
+          {isTotalScoring && (
+            <button
+              onClick={() => setSelectedPhaseIdx(OVERALL_RESULTS_VIEW)}
+              className={`px-5 py-4 text-sm font-medium rounded-lg whitespace-nowrap transition-colors mr-2 ${
+                isOverallView
+                  ? 'scoring-badge-active'
+                  : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
+              }`}
+            >
+              {t.board.overallResultsTab}
+            </button>
+          )}
           {session.status === 'completed' && winner && (
             <button
               onClick={() => setSelectedPhaseIdx(WINNER_VIEW)}
@@ -304,6 +314,11 @@ export default function PhaseReportModal({
                 </div>
               </div>
             )}
+            {!isWinnerView && (
+              <p className="mb-6 text-[11px] text-app-muted/70 text-center">
+                {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
+              </p>
+            )}
 
             {/* Table or Winner Card */}
             {isWinnerView ? (
@@ -316,7 +331,7 @@ export default function PhaseReportModal({
                   <p className="text-xs uppercase tracking-[0.45em] text-app-accent opacity-80">{t.board.winnerTitle}</p>
                   <h2 className="mt-4 text-5xl font-black tracking-tight text-app-text md:text-7xl drop-shadow-[0_0_18px_var(--color-app-accent-muted)]">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
                   <p className="mt-4 text-lg text-app-muted font-semibold tracking-wide">{t.board.winnerSubtitle}</p>
-                  {winnerOverallResult?.phaseBreakdown?.length > 0 && (
+                  {isTotalScoring && winnerOverallResult?.phaseBreakdown?.length > 0 && (
                     <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-accent/20 bg-app-card/55 px-5 py-5 text-left">
                       <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
                       <div className="overflow-hidden rounded-xl border border-app-border/60">
@@ -341,7 +356,7 @@ export default function PhaseReportModal({
                       </div>
                     </div>
                   )}
-                  {winnerOverallResult && (
+                  {isTotalScoring && winnerOverallResult && (
                     <div className="mt-8 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallAverage}</p>
@@ -350,6 +365,18 @@ export default function PhaseReportModal({
                       <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.overallTotal}</p>
                         <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerOverallResult.overallTotal.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {!isTotalScoring && (
+                    <div className="mt-8 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerScorePhase || t.board.winnerScore}</p>
+                        <p className="text-5xl font-mono text-app-accent font-black tracking-tighter">{winnerPhaseAverage.toFixed(2)}</p>
+                      </div>
+                      <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerPhaseLabel}</p>
+                        <p className="text-xl text-app-text font-semibold">{winnerPhaseName}</p>
                       </div>
                     </div>
                   )}
