@@ -211,6 +211,7 @@ export default function SessionBoard() {
   const [cities, setCities] = useState([]);
   const [selectedParentCountry, setSelectedParentCountry] = useState(null);
   const [phaseNameDraft, setPhaseNameDraft] = useState('');
+  const [isEditingPhaseName, setIsEditingPhaseName] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   const [isBulkListOpen, setIsBulkListOpen] = useState(false);
   const [bulkListRawText, setBulkListRawText] = useState('');
@@ -312,13 +313,14 @@ export default function SessionBoard() {
   }, [sessionId, judgeName]);
 
   useEffect(() => {
+    if (isEditingPhaseName) return;
     if (!session) return;
     const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
     const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
     const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
     const currentPhaseName = normalizedPhases[safePhaseIndex]?.name || getDefaultPhaseName(safePhaseIndex, currentLanguage);
     setPhaseNameDraft(normalizeUpperLabel(currentPhaseName));
-  }, [session, currentLanguage]);
+  }, [session, currentLanguage, isEditingPhaseName]);
 
   // Session + scores listener
   useEffect(() => {
@@ -623,6 +625,11 @@ export default function SessionBoard() {
     event.preventDefault();
     event.stopPropagation();
     removeParticipant(participantId).catch(() => {});
+  };
+
+  const handlePhaseNameBlur = () => {
+    commitPhaseName();
+    setIsEditingPhaseName(false);
   };
 
   const updatePhaseCutoff = async (value) => {
@@ -1444,16 +1451,19 @@ export default function SessionBoard() {
                   type="text"
                   value={phaseNameDraft}
                   onChange={e => setPhaseNameDraft(e.target.value)}
+                  onFocus={() => setIsEditingPhaseName(true)}
                   onPointerDown={event => event.stopPropagation()}
-                  onBlur={commitPhaseName}
+                  onBlur={handlePhaseNameBlur}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       commitPhaseName();
+                      setIsEditingPhaseName(false);
                       e.currentTarget.blur();
                     }
                     if (e.key === 'Escape') {
                       setPhaseNameDraft(currentPhase.name);
+                      setIsEditingPhaseName(false);
                       e.currentTarget.blur();
                     }
                   }}
@@ -1851,7 +1861,7 @@ export default function SessionBoard() {
                                     type="button"
                                     onPointerDown={event => event.stopPropagation()}
                                     onClick={() => removeParticipant(p.id).catch(() => {})}
-                                    onPointerUp={event => removeParticipantFromTouch(event, p.id)}
+                                    onTouchEnd={event => removeParticipantFromTouch(event, p.id)}
                                     className="inline-flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-lg border border-app-danger/35 bg-app-danger/10 text-app-danger transition-colors hover:bg-app-danger/20 touch-manipulation"
                                     title={t.board.removeParticipant}
                                     aria-label={`${t.board.removeParticipant}: ${p.name}`}
