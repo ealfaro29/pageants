@@ -26,6 +26,20 @@ function normalizeJudgeIdentity(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function getCreateSessionErrorMessage(error, fallbackMessage) {
+  const code = String(error?.code || '').toLowerCase();
+  if (code.includes('resource-exhausted')) {
+    return `${fallbackMessage} Firebase quota exceeded (resource-exhausted).`;
+  }
+  if (code.includes('permission-denied')) {
+    return `${fallbackMessage} Firestore permission denied.`;
+  }
+  if (code.includes('unavailable')) {
+    return `${fallbackMessage} Firestore temporarily unavailable.`;
+  }
+  return code ? `${fallbackMessage} (${code})` : fallbackMessage;
+}
+
 export default function ScoringLanding() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState(getStoredScoringTheme());
@@ -117,7 +131,7 @@ export default function ScoringLanding() {
       navigate(`/session/${nextSessionId}?judge=${encodeURIComponent(hostName.trim())}`);
     } catch (submitError) {
       console.error(submitError);
-      setError(t.create.createError);
+      setError(getCreateSessionErrorMessage(submitError, t.create.createError));
       setSubmitting(false);
     }
   };

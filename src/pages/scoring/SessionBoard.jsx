@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
-import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove, deleteField } from 'firebase/firestore';
 import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
   getCountryDisplayName,
@@ -184,7 +184,11 @@ export default function SessionBoard() {
   const [resultsLinkCopied, setResultsLinkCopied] = useState(false);
   const [forceAttempted, setForceAttempted] = useState(false);
   const [undoAttempted, setUndoAttempted] = useState(false);
+  const [submitReminderAttempted, setSubmitReminderAttempted] = useState(false);
   const [scoreDrafts, setScoreDrafts] = useState({});
+  const [isSubmittingScores, setIsSubmittingScores] = useState(false);
+  const [submitScoreError, setSubmitScoreError] = useState('');
+  const [submissionOverrides, setSubmissionOverrides] = useState({});
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [theme, setTheme] = useState(getStoredScoringTheme());
@@ -213,7 +217,6 @@ export default function SessionBoard() {
   const [isSkippedReviewOpen, setIsSkippedReviewOpen] = useState(false);
   const [bulkSkippedDrafts, setBulkSkippedDrafts] = useState([]);
   const searchRef = useRef(null);
-  const scoreSaveTimersRef = useRef({});
   const judgeRegistrationAttemptedRef = useRef(false);
   const fallbackLanguage = getStoredScoringLanguage();
   const currentLanguage = normalizeScoringLanguage(session?.language || fallbackLanguage);
@@ -284,18 +287,14 @@ export default function SessionBoard() {
   }, []);
 
   useEffect(() => {
-    Object.values(scoreSaveTimersRef.current).forEach(clearTimeout);
-    scoreSaveTimersRef.current = {};
     setScoreDrafts({});
+    setSubmissionOverrides({});
+    setIsSubmittingScores(false);
+    setSubmitScoreError('');
     setForceAttempted(false);
     setUndoAttempted(false);
+    setSubmitReminderAttempted(false);
   }, [sessionId, judgeName, session?.currentPhaseIndex, session?.status]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(scoreSaveTimersRef.current).forEach(clearTimeout);
-    };
-  }, []);
 
   useEffect(() => {
     judgeRegistrationAttemptedRef.current = false;
@@ -376,52 +375,81 @@ export default function SessionBoard() {
   }, [sessionId, session, judgeName]);
 
   // --- Actions ---
-  const handleScore = async (participantId, value) => {
-    if (!isJudgeApproved) return;
-    if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
-    if (session?.hostCanVote === false && judgeName === session?.host) return;
-    if (value === '' || value === undefined) {
-      await deleteScore(participantId);
-      return;
-    }
-    const num = parseFloat(value);
-    if (isNaN(num) || num < 0 || num > 10) return;
-    const phaseKey = `phase_${currentPhaseIndex}`;
-    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
-      [phaseKey]: { [participantId]: { [judgeName]: num } }
-    }, { merge: true });
+  const canCurrentJudgeVote = () => {
+    if (!isJudgeApproved) return false;
+    if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return false;
+    if (session?.hostCanVote === false && judgeName === session?.host) return false;
+    return true;
   };
 
-  const deleteScore = async (participantId) => {
-    if (!isJudgeApproved) return;
-    if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
-    if (session?.hostCanVote === false && judgeName === session?.host) return;
-    const phaseKey = `phase_${currentPhaseIndex}`;
-    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
-      [phaseKey]: { [participantId]: { [judgeName]: null } }
-    }, { merge: true });
+  const markCurrentPhaseSubmissionDirty = () => {
+    if (!canCurrentJudgeVote() || isSessionComplete) return;
+    const currentPhaseKey = `phase_${currentPhaseIndex}`;
+    const phaseSubmittedJudges = Array.isArray(currentPhase?.submittedJudges) ? currentPhase.submittedJudges : [];
+    const currentlySubmitted = submissionOverrides[currentPhaseKey] ?? judgeListIncludes(phaseSubmittedJudges, judgeName);
+    if (!currentlySubmitted) return;
+
+    setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: false }));
+    updateDoc(doc(db, "sessions", session.id), {
+      [`phases.${currentPhaseIndex}.submittedJudges`]: arrayRemove(judgeName)
+    }).catch(() => {});
   };
 
   const queueScoreSave = (participantId, value) => {
     setScoreDrafts(prev => ({ ...prev, [participantId]: value }));
-
-    if (scoreSaveTimersRef.current[participantId]) {
-      clearTimeout(scoreSaveTimersRef.current[participantId]);
-    }
-
-    scoreSaveTimersRef.current[participantId] = setTimeout(() => {
-      handleScore(participantId, value).catch(() => {});
-      delete scoreSaveTimersRef.current[participantId];
-    }, 250);
+    setSubmitScoreError('');
+    markCurrentPhaseSubmissionDirty();
   };
 
   const flushScoreSave = (participantId, fallbackValue) => {
-    if (scoreSaveTimersRef.current[participantId]) {
-      clearTimeout(scoreSaveTimersRef.current[participantId]);
-      delete scoreSaveTimersRef.current[participantId];
+    const nextValue = scoreDrafts[participantId] ?? fallbackValue ?? '';
+    setScoreDrafts(prev => ({ ...prev, [participantId]: nextValue }));
+    setSubmitScoreError('');
+    markCurrentPhaseSubmissionDirty();
+  };
+
+  const submitCurrentJudgeScores = async () => {
+    if (!canCurrentJudgeVote() || isSessionComplete || currentParticipants.length === 0) return;
+
+    const missingScores = currentParticipants.reduce((count, participant) => {
+      const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName];
+      const parsed = Number.parseFloat(raw);
+      const valid = Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
+      return valid ? count : count + 1;
+    }, 0);
+
+    if (missingScores > 0) {
+      setSubmitScoreError(t.board.submitScoresIncomplete(missingScores));
+      return;
     }
 
-    handleScore(participantId, scoreDrafts[participantId] ?? fallbackValue ?? '').catch(() => {});
+    setSubmitScoreError('');
+    setIsSubmittingScores(true);
+    const currentPhaseKey = `phase_${currentPhaseIndex}`;
+
+    try {
+      const participantScoresPayload = {};
+      currentParticipants.forEach(participant => {
+        const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName];
+        const parsed = Number.parseFloat(raw);
+        const clamped = Math.min(Math.max(parsed, 0), 10);
+        participantScoresPayload[participant.id] = { [judgeName]: clamped };
+      });
+
+      await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
+        [currentPhaseKey]: participantScoresPayload
+      }, { merge: true });
+
+      await updateDoc(doc(db, "sessions", session.id), {
+        [`phases.${currentPhaseIndex}.submittedJudges`]: arrayUnion(judgeName)
+      });
+
+      setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: true }));
+    } catch {
+      setSubmitScoreError(t.board.submitScoresError);
+    } finally {
+      setIsSubmittingScores(false);
+    }
   };
 
   const addParticipant = async (item) => {
@@ -798,6 +826,10 @@ export default function SessionBoard() {
 
   const handlePhaseAction = async () => {
     setUndoAttempted(false);
+    if (pendingSubmitJudges.length > 0 && !submitReminderAttempted) {
+      setSubmitReminderAttempted(true);
+      return;
+    }
     const existingCutoff = Number.parseInt(currentPhase.cutoff, 10);
     if (Number.isFinite(existingCutoff) && existingCutoff > 0) {
       executePhaseAction(existingCutoff);
@@ -864,6 +896,7 @@ export default function SessionBoard() {
   const participantMap = new Map(allParticipants.map(participant => [participant.id, participant]));
   const phaseKey = `phase_${currentPhaseIndex}`;
   const phaseScores = scores[phaseKey] || {};
+  const phaseSubmittedJudges = Array.isArray(currentPhase.submittedJudges) ? currentPhase.submittedJudges : [];
 
   // Get participants for a given phase index
   const getPhaseParticipants = (phaseIdx, options = {}) => {
@@ -961,14 +994,30 @@ export default function SessionBoard() {
   const qualifiedIds = new Set(rankedForCutoff.slice(0, cutoffLimit).map(p => p.id));
 
   // Check completion for advance button
-  const allJudgesComplete = currentParticipants.length > 0 && currentParticipants.every(p => {
-    const pScores = phaseScores[p.id] || {};
-    return judges.every(j => pScores[j] !== undefined && pScores[j] !== null);
+  const allJudgesComplete = judges.length > 0 && judges.every(judge => {
+    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
+    if (!hasSubmitted) return false;
+    return currentParticipants.every(participant => {
+      const participantScores = phaseScores[participant.id] || {};
+      return participantScores[judge] !== undefined && participantScores[judge] !== null;
+    });
   });
-  const votedJudges = judges.filter(j => currentParticipants.every(p => {
-    const ps = phaseScores[p.id] || {};
-    return ps[j] !== undefined && ps[j] !== null;
-  })).length;
+  const votedJudges = judges.filter(judge => {
+    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
+    if (!hasSubmitted) return false;
+    return currentParticipants.every(participant => {
+      const participantScores = phaseScores[participant.id] || {};
+      return participantScores[judge] !== undefined && participantScores[judge] !== null;
+    });
+  }).length;
+  const pendingSubmitJudges = judges.filter(judge => {
+    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
+    if (!hasSubmitted) return true;
+    return currentParticipants.some(participant => {
+      const participantScores = phaseScores[participant.id] || {};
+      return participantScores[judge] === undefined || participantScores[judge] === null;
+    });
+  });
   const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
@@ -987,6 +1036,10 @@ export default function SessionBoard() {
   const lastCompletedPhase = lastCompletedPhaseIndex !== null ? phases[lastCompletedPhaseIndex] : null;
   const canUndoPhase = isHost && (currentPhaseIndex > 0 || isSessionComplete);
   const currentPhaseHasSavedScores = phaseHasSavedScores(currentPhaseIndex);
+  const currentUserCanSubmitScores = canCurrentJudgeVote() && !isSessionComplete && currentParticipants.length > 0;
+  const currentUserSubmittedPhase = currentUserCanSubmitScores
+    ? (submissionOverrides[phaseKey] ?? judgeListIncludes(phaseSubmittedJudges, judgeName))
+    : false;
 
   const undoPhaseAdvance = async () => {
     setForceAttempted(false);
@@ -1727,12 +1780,44 @@ export default function SessionBoard() {
                 )}
               </div>
 
+              {currentUserCanSubmitScores && (
+                <div className="p-2 md:p-4 border-t border-app-border bg-app-card shrink-0">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p
+                      className={`text-xs font-bold uppercase tracking-widest ${currentUserSubmittedPhase ? 'text-emerald-300' : 'text-amber-300'}`}
+                    >
+                      {currentUserSubmittedPhase ? t.board.submitScoresStatusSubmitted : t.board.submitScoresStatusDraft}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isSubmittingScores}
+                      onClick={() => submitCurrentJudgeScores().catch(() => {})}
+                      className="scoring-btn-primary rounded-lg h-10 px-4 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
+                    >
+                      {isSubmittingScores
+                        ? t.board.submitScoresBusy
+                        : currentUserSubmittedPhase
+                          ? t.board.resubmitScores
+                          : t.board.submitScores}
+                    </button>
+                  </div>
+                  {submitScoreError && (
+                    <p className="mt-2 text-xs text-red-300">{submitScoreError}</p>
+                  )}
+                </div>
+              )}
+
               {/* Advance button (host only) */}
               {isHost && (currentParticipants.length > 0 || currentPhaseIndex > 0) && (
                 <div className="p-2 md:p-4 border-t border-app-border bg-app-card shrink-0">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="text-xs text-app-muted/70 space-y-1">
                       <span style={votedJudges === judges.length ? { color: 'var(--color-app-success)' } : undefined}>{t.board.judgesCompleted(votedJudges, judges.length)}</span>
+                      {submitReminderAttempted && pendingSubmitJudges.length > 0 && (
+                        <p style={{ color: 'var(--color-app-warning)' }}>
+                          {`Falta submit de: ${pendingSubmitJudges.join(', ')}`}
+                        </p>
+                      )}
                       {!isSessionComplete && currentPhaseIndex > 0 && undoAttempted && currentPhaseHasSavedScores && (
                         <p style={{ color: 'var(--color-app-danger)' }}>{t.board.undoPhaseWarning}</p>
                       )}
