@@ -19,44 +19,59 @@ const manualSteps = [
     image: '/manual/guide-20260522-03-create-session.png'
   },
   {
-    title: '4) Share Session Code (MU- + 6 Characters)',
+    title: '4) Understand Scoring Modes',
+    text: 'Total Aggregate keeps adding points from all completed phases. Per Phase resets points every phase and ranks only with the current phase score.',
+    image: '/manual/guide-20260522-04-scoring-modes-difference.png'
+  },
+  {
+    title: '5) Share Session Code (MU- + 6 Characters)',
     text: 'The host board shows the session code. Judges and audience enter only the 6-character suffix because MU- is fixed in the input.',
-    image: '/manual/guide-20260522-04-host-session-code.png'
+    image: '/manual/guide-20260522-05-host-session-code.png'
   },
   {
-    title: '5) Add from List (Chaos Import + Preview)',
-    text: 'Use Add from list to paste raw/chaotic text. The workflow cleans names, detects country/place per line, and shows a preview before you approve adding participants.',
-    image: '/manual/guide-20260522-05-add-from-list.png'
+    title: '6) Add from List (Chaos Import + Preview)',
+    text: 'Use Add from list to paste raw/chaotic text. The workflow cleans names, detects country/place per line, keeps duplicates with (2), (3), and opens a skipped-lines review for edit/delete/submit-as-is before final approval.',
+    image: '/manual/guide-20260522-06-add-from-list.png'
   },
   {
-    title: '6) Judge Requests Access',
+    title: '7) Judge Requests Access',
     text: 'A judge enters name + 6-character code suffix and joins. Their access stays pending until the host approves.',
-    image: '/manual/guide-20260522-06-judge-awaiting-approval.png'
+    image: '/manual/guide-20260522-07-judge-awaiting-approval.png'
   },
   {
-    title: '7) Host Approval Notification',
+    title: '8) Host Approval Notification',
     text: 'Hosts receive a pending-judge notification with direct Approve/Reject actions. If the original host becomes inactive, controls transfer automatically to the first approved judge; when the host returns, they can reclaim controls from a notification.',
-    image: '/manual/guide-20260522-07-host-pending-notification.png'
+    image: '/manual/guide-20260522-08-host-pending-notification.png'
   },
   {
-    title: '8) Score the Active Phase',
-    text: 'Approved judges can score the active phase. During live scoring, judges do not see live cut/elimination decisions from the current phase.',
-    image: '/manual/guide-20260522-08-judge-scoring.png'
+    title: '9) Score the Active Phase',
+    text: 'Approved judges can score the active phase and see the last submitted results on the right panel. During live scoring, judges do not see live cut/elimination decisions from the current phase.',
+    image: '/manual/guide-20260522-09-judge-scoring.png'
   },
   {
-    title: '9) Native Cutoff Confirmation',
+    title: '10) Native Cutoff Confirmation',
     text: 'If the host tries to advance without cutoff, the app opens an in-app modal to define how many contestants advance before continuing.',
-    image: '/manual/guide-20260522-09-cutoff-modal.png'
+    image: '/manual/guide-20260522-10-cutoff-modal.png'
   },
   {
-    title: '10) Winner Screen',
+    title: '11) Winner Screen',
     text: 'When final cutoff is 1 and host reveals the winner, the board shows the winner summary and official final metrics.',
-    image: '/manual/guide-20260522-10-winner-view.png'
+    image: '/manual/guide-20260522-11-winner-view.png'
   },
   {
-    title: '11) Public Results View',
+    title: '12) Public Results View',
     text: 'Audience enters only the 6-character code suffix to open results. Public view shows closed phases and final winner when published.',
-    image: '/manual/guide-20260522-11-public-results.png'
+    image: '/manual/guide-20260522-12-public-results.png'
+  },
+  {
+    title: '13) Appearance Controls',
+    text: 'From the top-right controls, you can switch language, change accent color, and toggle light/dark themes at any time.',
+    image: '/manual/guide-20260522-13-appearance-controls.png'
+  },
+  {
+    title: '14) Download Results',
+    text: 'Open Reports and use Download image to export current scoreboards for sharing, publishing, or archive records.',
+    image: '/manual/guide-20260522-14-download-results.png'
   }
 ];
 
@@ -83,7 +98,7 @@ export default function UserManual() {
               </p>
               <h1 className="text-3xl md:text-4xl font-black tracking-tight">Scoring App - Complete Usage Guide</h1>
               <p className="text-sm md:text-base text-app-muted/80 mt-3 max-w-3xl">
-                Updated workflow guide with splash entry, scoring modes, Add from list preview import, host approval alerts, native cutoff modal, and latest public-results behavior.
+                Updated workflow guide with splash entry, scoring-mode differences, Add from list normalization and review flow, host approval alerts, native cutoff modal, appearance controls, and results export steps.
               </p>
             </div>
             <a
