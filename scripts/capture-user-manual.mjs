@@ -19,6 +19,15 @@ async function setEnglishLightStorage(page) {
   });
 }
 
+function escapeXml(value) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
 async function markScreenshot(filename, markers = []) {
   const filePath = path.join(OUT_DIR, filename);
   const image = sharp(filePath);
@@ -26,17 +35,32 @@ async function markScreenshot(filename, markers = []) {
   const width = metadata.width || VIEWPORT.width;
   const height = metadata.height || VIEWPORT.height;
 
-  const circles = markers.map((marker, idx) => `
-    <g>
-      <circle cx="${marker.x}" cy="${marker.y}" r="24" fill="rgba(251,191,36,0.28)" stroke="rgba(251,191,36,0.95)" stroke-width="3" />
-      <circle cx="${marker.x}" cy="${marker.y}" r="12" fill="rgba(17,24,39,0.85)" />
-      <text x="${marker.x}" y="${marker.y + 4}" fill="#ffffff" font-size="12" font-family="Arial, sans-serif" text-anchor="middle" font-weight="700">${idx + 1}</text>
-    </g>
-  `).join('\n');
+  const callouts = markers.map((marker) => {
+    const label = escapeXml(marker.label || '');
+    const pad = Number.isFinite(marker.pad) ? marker.pad : 6;
+    const rectX = Math.max(1, marker.x - pad);
+    const rectY = Math.max(1, marker.y - pad);
+    const rectW = Math.min(width - rectX - 1, marker.width + pad * 2);
+    const rectH = Math.min(height - rectY - 1, marker.height + pad * 2);
+    const labelWidth = Math.max(92, label.length * 7.2 + 22);
+    const labelHeight = 24;
+    const labelX = Math.max(4, Math.min(width - labelWidth - 4, rectX));
+    const labelY = rectY > labelHeight + 6 ? rectY - (labelHeight + 4) : rectY + 4;
+    const textX = labelX + labelWidth / 2;
+    const textY = labelY + 16;
+
+    return `
+      <g>
+        <rect x="${rectX}" y="${rectY}" rx="8" ry="8" width="${rectW}" height="${rectH}" fill="rgba(251,191,36,0.16)" stroke="rgba(251,191,36,0.95)" stroke-width="2.5" />
+        <rect x="${labelX}" y="${labelY}" rx="6" ry="6" width="${labelWidth}" height="${labelHeight}" fill="rgba(15,23,42,0.94)" stroke="rgba(251,191,36,0.95)" stroke-width="1.5" />
+        <text x="${textX}" y="${textY}" fill="#f9fafb" font-size="12" font-family="Arial, sans-serif" text-anchor="middle" font-weight="700">${label}</text>
+      </g>
+    `;
+  }).join('\n');
 
   const overlaySvg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      ${circles}
+      ${callouts}
     </svg>
   `;
 
@@ -46,6 +70,22 @@ async function markScreenshot(filename, markers = []) {
     .toFile(filePath + '.tmp.png');
 
   await fs.rename(filePath + '.tmp.png', filePath);
+}
+
+async function markerFromLocator(locator, label, { pad = 6 } = {}) {
+  const target = locator.first();
+  await target.waitFor({ state: 'visible', timeout: 8000 });
+  const box = await target.boundingBox();
+  if (!box) throw new Error(`Could not get marker bounds for ${label}`);
+
+  return {
+    x: Math.round(box.x),
+    y: Math.round(box.y),
+    width: Math.max(10, Math.round(box.width)),
+    height: Math.max(10, Math.round(box.height)),
+    label,
+    pad
+  };
 }
 
 async function main() {
@@ -62,18 +102,18 @@ async function main() {
   await hostPage.waitForTimeout(1200);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '01-welcome-splash.png') });
   await markScreenshot('01-welcome-splash.png', [
-    { x: 920, y: 630 },
-    { x: 1065, y: 632 },
-    { x: 870, y: 530 }
+    await markerFromLocator(hostPage.getByRole('button', { name: /Enter system/i }), 'Enter system'),
+    await markerFromLocator(hostPage.locator(':is(button,a):has-text(\"How to Use\")'), 'How to Use'),
+    await markerFromLocator(hostPage.getByText(/professional system to create sessions/i), 'Welcome info')
   ]);
 
   await hostPage.click('button:has-text("Enter system")');
   await hostPage.waitForTimeout(700);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '02-landing-roles.png') });
   await markScreenshot('02-landing-roles.png', [
-    { x: 485, y: 490 },
-    { x: 684, y: 490 },
-    { x: 885, y: 490 }
+    await markerFromLocator(hostPage.getByText(/^I'm a host$/i), 'Host'),
+    await markerFromLocator(hostPage.getByText(/^I'm a judge$/i), 'Judge'),
+    await markerFromLocator(hostPage.getByText(/^I'm a spectator$/i), 'Audience')
   ]);
 
   await hostPage.click("button:has-text(\"I'm a host\")");
@@ -84,9 +124,9 @@ async function main() {
   await hostPage.waitForTimeout(400);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '03-create-session.png') });
   await markScreenshot('03-create-session.png', [
-    { x: 690, y: 430 },
-    { x: 690, y: 550 },
-    { x: 822, y: 650 }
+    await markerFromLocator(hostPage.locator('select').first(), 'Session type'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /Per Phase/i }), 'Scoring mode'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /Host admin only/i }), 'Host voting')
   ]);
 
   await hostPage.click('button:has-text("Create Session")');
@@ -100,8 +140,8 @@ async function main() {
   const sessionSuffix = sessionId.split('-')[1] || sessionId;
   await hostPage.screenshot({ path: path.join(OUT_DIR, '04-host-session-code.png') });
   await markScreenshot('04-host-session-code.png', [
-    { x: 1228, y: 35 },
-    { x: 1020, y: 35 }
+    await markerFromLocator(hostPage.getByRole('button', { name: /^Settings$/i }), 'Settings'),
+    await markerFromLocator(hostPage.getByText(/^MU-[A-Z0-9]{6}$/), 'Session code')
   ]);
 
   const addCountryInput = hostPage.locator('input[placeholder="Add country..."]');
@@ -124,16 +164,16 @@ async function main() {
   await judgePage.waitForTimeout(2500);
   await judgePage.screenshot({ path: path.join(OUT_DIR, '05-judge-awaiting-approval.png') });
   await markScreenshot('05-judge-awaiting-approval.png', [
-    { x: 683, y: 315 },
-    { x: 684, y: 425 }
+    await markerFromLocator(judgePage.getByText(/Waiting for approval/i), 'Waiting status'),
+    await markerFromLocator(judgePage.getByText(/approved by the host/i), 'Pending message')
   ]);
 
   await hostPage.waitForTimeout(1000);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '06-host-pending-notification.png') });
   await markScreenshot('06-host-pending-notification.png', [
-    { x: 256, y: 87 },
-    { x: 1050, y: 90 },
-    { x: 1162, y: 90 }
+    await markerFromLocator(hostPage.getByText(/is waiting for approval/i), 'Judge request alert'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /Approve now/i }), 'Approve'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /^Reject$/i }), 'Reject')
   ]);
   await hostPage.click('button:has-text("Approve now")');
   await hostPage.waitForTimeout(1500);
@@ -142,16 +182,16 @@ async function main() {
   await judgePage.waitForTimeout(1500);
   await judgePage.screenshot({ path: path.join(OUT_DIR, '07-judge-scoring.png') });
   await markScreenshot('07-judge-scoring.png', [
-    { x: 778, y: 478 },
-    { x: 1179, y: 188 }
+    await markerFromLocator(judgePage.locator('input[type="number"][step="0.01"]').first(), 'Score input'),
+    await markerFromLocator(judgePage.getByText(/Last submitted results/i), 'Last submitted results')
   ]);
 
   await hostPage.click('button:has-text("Advance Phase")');
   await hostPage.waitForTimeout(800);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '08-cutoff-modal.png') });
   await markScreenshot('08-cutoff-modal.png', [
-    { x: 683, y: 375 },
-    { x: 765, y: 530 }
+    await markerFromLocator(hostPage.locator('input[type="number"]').nth(0), 'Set advancing count'),
+    await markerFromLocator(hostPage.getByRole('button', { name: /Save and continue/i }), 'Save and continue')
   ]);
   await hostPage.click('button:has-text("Cancel")');
   await hostPage.waitForTimeout(600);
@@ -173,8 +213,8 @@ async function main() {
   await hostPage.waitForTimeout(2000);
   await hostPage.screenshot({ path: path.join(OUT_DIR, '09-winner-view.png') });
   await markScreenshot('09-winner-view.png', [
-    { x: 667, y: 300 },
-    { x: 670, y: 470 }
+    await markerFromLocator(hostPage.getByRole('heading', { name: /Scotland/i }), 'Winner profile'),
+    await markerFromLocator(hostPage.getByText(/Final average/i), 'Final metrics')
   ]);
 
   const publicPage = await hostContext.newPage();
@@ -183,8 +223,8 @@ async function main() {
   await publicPage.waitForTimeout(1500);
   await publicPage.screenshot({ path: path.join(OUT_DIR, '10-public-results.png') });
   await markScreenshot('10-public-results.png', [
-    { x: 238, y: 202 },
-    { x: 1118, y: 204 }
+    await markerFromLocator(publicPage.getByText(/^Judges \(2\)$/i), 'Public summary'),
+    await markerFromLocator(publicPage.getByText(/Official Winner/i), 'Published winner card')
   ]);
 
   await browser.close();
