@@ -87,6 +87,14 @@ function rankParticipantsByPhaseScores(participants, phaseScores) {
     .sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name));
 }
 
+function getVotingJudges(sessionData) {
+  const includeHostVote = sessionData?.hostCanVote !== false;
+  const hostName = String(sessionData?.host || '').trim().toLowerCase();
+  const judges = Array.isArray(sessionData?.judges) ? sessionData.judges : [];
+  if (includeHostVote) return judges;
+  return judges.filter(judge => String(judge || '').trim().toLowerCase() !== hostName);
+}
+
 export default function PublicResults() {
   const { sessionId } = useParams();
   const [session, setSession] = useState(null);
@@ -158,7 +166,7 @@ export default function PublicResults() {
     }
 
     const allParticipants = session.participants || [];
-    const judgesList = session.judges || [];
+    const judgesList = getVotingJudges(session);
     const scoringModeIsTotal = isTotalScoringMode(session.scoringMode);
     const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
     const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);

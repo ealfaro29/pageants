@@ -105,6 +105,20 @@ function judgeListIncludes(list, judgeName) {
   return Array.isArray(list) && list.some(entry => normalizeJudgeIdentity(entry) === normalizedJudge);
 }
 
+function getVotingJudges(sessionData) {
+  const includeHostVote = sessionData?.hostCanVote !== false;
+  const hostName = sessionData?.host;
+  const judges = Array.isArray(sessionData?.judges) ? sessionData.judges : [];
+  if (includeHostVote) return judges;
+  return judges.filter(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(hostName));
+}
+
+function getFirstBackupJudge(sessionData) {
+  const hostName = sessionData?.host;
+  const judges = getVotingJudges(sessionData);
+  return judges.find(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(hostName)) || null;
+}
+
 function getParticipantScoreStatsByPhases(participantId, phaseIndexes, scoreMap) {
   let total = 0;
   let votes = 0;
@@ -290,10 +304,44 @@ export default function SessionBoard() {
     return () => { unsubS(); unsubSc(); };
   }, [sessionId, judgeName, navigate]);
 
+  useEffect(() => {
+    if (!sessionId || !session || session.host !== judgeName) return;
+    const pingHostPresence = () => {
+      updateDoc(doc(db, "sessions", sessionId), { hostLastSeenAt: Date.now() }).catch(() => {});
+    };
+    pingHostPresence();
+    const timer = setInterval(pingHostPresence, 20000);
+    return () => clearInterval(timer);
+  }, [sessionId, session, judgeName]);
+
+  useEffect(() => {
+    if (!sessionId || !session) return;
+    if (judgeName === session.host) return;
+    if (!judgeListIncludes(getVotingJudges(session), judgeName)) return;
+
+    const currentControlHost = session.controlHost || session.host;
+    const hostIsCurrentController = normalizeJudgeIdentity(currentControlHost) === normalizeJudgeIdentity(session.host);
+    if (!hostIsCurrentController) return;
+
+    const firstBackupJudge = getFirstBackupJudge(session);
+    if (!firstBackupJudge) return;
+    if (normalizeJudgeIdentity(firstBackupJudge) !== normalizeJudgeIdentity(judgeName)) return;
+
+    const hostLastSeenAt = Number(session.hostLastSeenAt || 0);
+    const hostInactiveForMs = Date.now() - hostLastSeenAt;
+    if (hostInactiveForMs < 90000) return;
+
+    updateDoc(doc(db, "sessions", sessionId), {
+      controlHost: firstBackupJudge,
+      controlHostAssignedAt: Date.now()
+    }).catch(() => {});
+  }, [sessionId, session, judgeName]);
+
   // --- Actions ---
   const handleScore = async (participantId, value) => {
     if (!isJudgeApproved) return;
     if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
+    if (session?.hostCanVote === false && judgeName === session?.host) return;
     if (value === '' || value === undefined) {
       await deleteScore(participantId);
       return;
@@ -309,6 +357,7 @@ export default function SessionBoard() {
   const deleteScore = async (participantId) => {
     if (!isJudgeApproved) return;
     if (judgeListIncludes(session?.removedJudges, judgeName) && session?.host !== judgeName) return;
+    if (session?.hostCanVote === false && judgeName === session?.host) return;
     const phaseKey = `phase_${currentPhaseIndex}`;
     await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
       [phaseKey]: { [participantId]: { [judgeName]: null } }
@@ -447,11 +496,20 @@ export default function SessionBoard() {
     });
   };
 
+  const reclaimHostControls = async () => {
+    if (!session?.host || judgeName !== session.host) return;
+    await updateDoc(doc(db, "sessions", session.id), {
+      controlHost: session.host,
+      controlHostAssignedAt: Date.now(),
+      hostLastSeenAt: Date.now()
+    });
+  };
+
   const advancePhase = async (cutoffOverride = null) => {
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = scores[phaseKey] || {};
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
-    const judges = session.judges || [];
+    const judges = getVotingJudges(session);
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
@@ -517,7 +575,7 @@ export default function SessionBoard() {
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = scores[phaseKey] || {};
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
-    const judges = session.judges || [];
+    const judges = getVotingJudges(session);
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
@@ -663,14 +721,16 @@ export default function SessionBoard() {
     </div>
   );
 
-  const isHost = session.host === judgeName;
-  const isJudgeRemoved = !isHost && judgeListIncludes(session.removedJudges, judgeName);
+  const controlHost = session.controlHost || session.host;
+  const isHost = normalizeJudgeIdentity(controlHost) === normalizeJudgeIdentity(judgeName);
+  const isOriginalHost = normalizeJudgeIdentity(session.host) === normalizeJudgeIdentity(judgeName);
+  const isJudgeRemoved = !isHost && !isOriginalHost && judgeListIncludes(session.removedJudges, judgeName);
   const allParticipants = session.participants || [];
-  const judges = session.judges || [];
+  const judges = getVotingJudges(session);
   const pendingJudgeRequests = session.pendingJudges || [];
   const hasPendingJudgeRequests = isHost && pendingJudgeRequests.length > 0;
-  const isJudgeApproved = isHost || judgeListIncludes(judges, judgeName);
-  const isJudgePendingApproval = !isHost && judgeListIncludes(pendingJudgeRequests, judgeName);
+  const isJudgeApproved = isOriginalHost || isHost || judgeListIncludes(judges, judgeName);
+  const isJudgePendingApproval = !isOriginalHost && !isHost && judgeListIncludes(pendingJudgeRequests, judgeName);
   const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
   const phases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
   const currentPhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), phases.length - 1);
@@ -786,8 +846,12 @@ export default function SessionBoard() {
   const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
+  const hostVotingDisabledForCurrentUser = session.hostCanVote === false && isOriginalHost;
   const shouldHideCutInsightsForJudge = !isHost && !isSessionComplete && currentPhase.status === 'active';
   const shouldShowCutPreview = !shouldHideCutInsightsForJudge;
+  const hasTransferredControls = normalizeJudgeIdentity(controlHost) !== normalizeJudgeIdentity(session.host);
+  const showTransferredControlsNotice = isHost && hasTransferredControls;
+  const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
   const completedPhaseIndexes = phases
     .map((phase, idx) => (phase.status === 'completed' ? idx : null))
     .filter(idx => idx !== null);
@@ -1024,6 +1088,37 @@ export default function SessionBoard() {
           </button>
         </div>
       </header>
+
+      {showTransferredControlsNotice && (
+        <div className="px-4 pt-3">
+          <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-200">
+              {t.board.controlsTransferredNotice(controlHost)}
+            </p>
+            <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
+          </div>
+        </div>
+      )}
+
+      {showReclaimControlsNotice && (
+        <div className="px-4 pt-3">
+          <div className="rounded-xl border border-app-accent/35 bg-app-accent/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-app-accent">
+                {t.board.controlsTransferredNotice(controlHost)}
+              </p>
+              <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => reclaimHostControls().catch(() => {})}
+              className="scoring-btn-primary rounded-lg h-10 px-4 text-xs font-bold uppercase tracking-widest"
+            >
+              {t.board.reclaimHostControls}
+            </button>
+          </div>
+        </div>
+      )}
 
       {hasPendingJudgeRequests && (
         <div className="px-4 pt-3">
@@ -1332,6 +1427,10 @@ export default function SessionBoard() {
                               {isAbsent ? (
                                 <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest text-amber-300">
                                   {t.board.absentBadge}
+                                </span>
+                              ) : hostVotingDisabledForCurrentUser ? (
+                                <span className="inline-flex items-center rounded-full border border-app-border/60 bg-app-card px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest text-app-muted/80">
+                                  {t.board.hostNotVotingLabel}
                                 </span>
                               ) : (
                                 <div className="flex items-center gap-2 md:gap-3">

@@ -5,6 +5,14 @@ import { scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent } from './scoringTheme';
 import { isTotalScoringMode } from './scoringMode';
 
+function getVotingJudges(sessionData) {
+  const includeHostVote = sessionData?.hostCanVote !== false;
+  const hostName = String(sessionData?.host || '').trim().toLowerCase();
+  const judges = Array.isArray(sessionData?.judges) ? sessionData.judges : [];
+  if (includeHostVote) return judges;
+  return judges.filter(judge => String(judge || '').trim().toLowerCase() !== hostName);
+}
+
 export default function PhaseReportModal({
   isOpen,
   onClose,
@@ -37,7 +45,7 @@ export default function PhaseReportModal({
 
   if (!isOpen) return null;
 
-  const judges = session?.judges || [];
+  const judges = getVotingJudges(session);
   const allParticipants = session?.participants || [];
   const visiblePhases = phases.slice(0, currentPhaseIndex + 1);
   const isOverallView = isTotalScoring && selectedPhaseIdx === OVERALL_RESULTS_VIEW;

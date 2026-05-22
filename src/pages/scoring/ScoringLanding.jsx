@@ -36,6 +36,7 @@ export default function ScoringLanding() {
   const [sessionName, setSessionName] = useState('');
   const [sessionType, setSessionType] = useState('Global');
   const [scoringMode, setScoringMode] = useState(SCORING_MODE_TOTAL);
+  const [hostCanVote, setHostCanVote] = useState(true);
   const [judgeName, setJudgeName] = useState('');
   const [sessionCode, setSessionCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -97,12 +98,15 @@ export default function ScoringLanding() {
       name: sessionName.trim(),
       type: sessionType,
       scoringMode,
+      hostCanVote,
       language,
       host: hostName.trim(),
+      controlHost: hostName.trim(),
+      hostLastSeenAt: Date.now(),
       currentPhaseIndex: 0,
       phases: [{ name: getDefaultPhaseName(0, language), cutoff: null, status: 'active' }],
       participants: [],
-      judges: [hostName.trim()],
+      judges: hostCanVote ? [hostName.trim()] : [],
       pendingJudges: [],
       removedJudges: [],
       createdAt: Date.now()
@@ -352,6 +356,25 @@ export default function ScoringLanding() {
                         </button>
                       </div>
                     </div>
+                    <div className="rounded-lg border border-app-border/60 bg-app-card/35 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80 mb-2">{t.create.hostVotingLabel}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setHostCanVote(true)}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${hostCanVote ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                        >
+                          <p className="text-xs font-bold text-app-text">{t.create.hostVotingYes}</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHostCanVote(false)}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${!hostCanVote ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                        >
+                          <p className="text-xs font-bold text-app-text">{t.create.hostVotingNo}</p>
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2 pt-1">
                       <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
                         {t.landing.workflowBack}
@@ -510,6 +533,25 @@ export default function ScoringLanding() {
                     >
                       <p className="text-xs font-bold text-app-text">{t.create.scoringModePhase}</p>
                       <p className="text-[10px] text-app-muted/80 mt-1">{t.create.scoringModePhaseDescription}</p>
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-app-border/60 bg-app-card/35 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80 mb-2">{t.create.hostVotingLabel}</p>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setHostCanVote(true)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${hostCanVote ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                    >
+                      <p className="text-xs font-bold text-app-text">{t.create.hostVotingYes}</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHostCanVote(false)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${!hostCanVote ? 'border-app-accent bg-app-accent/10' : 'border-app-border/60 bg-app-card/40'}`}
+                    >
+                      <p className="text-xs font-bold text-app-text">{t.create.hostVotingNo}</p>
                     </button>
                   </div>
                 </div>
