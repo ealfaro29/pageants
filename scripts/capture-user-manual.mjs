@@ -30,7 +30,7 @@ function escapeXml(value) {
 
 async function markScreenshot(filename, markers = []) {
   if (!markers.length) return;
-  if (process.env.MANUAL_DISABLE_MARKERS === '1') return;
+  if (process.env.MANUAL_ENABLE_MARKERS !== '1') return;
   const filePath = path.join(OUT_DIR, filename);
   const image = sharp(filePath);
   const metadata = await image.metadata();
