@@ -24,6 +24,7 @@ import {
 } from './scoringTheme';
 import { buildNumberedParticipant } from './participantUtils';
 import { isTotalScoringMode } from './scoringMode';
+import { parseParticipantsFromBulkList } from './bulkParticipantParser';
 
 function getDefaultPhase(language) {
   return { name: getDefaultPhaseName(0, language), cutoff: null, participantIds: null, absentParticipantIds: null, status: 'active' };
@@ -137,6 +138,16 @@ function getParticipantScoreStatsByPhases(participantId, phaseIndexes, scoreMap)
   };
 }
 
+function normalizeParticipantName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
 export default function SessionBoard() {
   useEffect(() => {
     const html = document.documentElement;
@@ -183,6 +194,13 @@ export default function SessionBoard() {
   const [selectedParentCountry, setSelectedParentCountry] = useState(null);
   const [phaseNameDraft, setPhaseNameDraft] = useState('');
   const [loadingCities, setLoadingCities] = useState(false);
+  const [isBulkListOpen, setIsBulkListOpen] = useState(false);
+  const [bulkListRawText, setBulkListRawText] = useState('');
+  const [bulkListPreview, setBulkListPreview] = useState([]);
+  const [bulkListSkipped, setBulkListSkipped] = useState([]);
+  const [bulkListTotalLines, setBulkListTotalLines] = useState(0);
+  const [bulkListParseAttempted, setBulkListParseAttempted] = useState(false);
+  const [isBulkApplying, setIsBulkApplying] = useState(false);
   const searchRef = useRef(null);
   const scoreSaveTimersRef = useRef({});
   const judgeRegistrationAttemptedRef = useRef(false);
@@ -237,6 +255,13 @@ export default function SessionBoard() {
       setSearchResults(pool.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 10));
     } else setSearchResults([]);
   }, [searchQuery, countries, cities, session?.type, selectedParentCountry]);
+
+  useEffect(() => {
+    setBulkListPreview([]);
+    setBulkListSkipped([]);
+    setBulkListTotalLines(0);
+    setBulkListParseAttempted(false);
+  }, [session?.type, selectedParentCountry?.id]);
 
   // Click outside
   useEffect(() => {
@@ -393,6 +418,55 @@ export default function SessionBoard() {
       participants: [...participants, nextParticipant]
     });
     setSearchQuery(''); setSearchResults([]);
+  };
+
+  const parseBulkList = () => {
+    const { parsed, skipped, totalLines } = parseParticipantsFromBulkList({
+      rawText: bulkListRawText,
+      sessionType: session?.type || 'Global',
+      countries,
+      selectedParentCountry
+    });
+
+    setBulkListPreview(parsed);
+    setBulkListSkipped(skipped);
+    setBulkListTotalLines(totalLines);
+    setBulkListParseAttempted(true);
+  };
+
+  const addParticipantsFromBulkList = async () => {
+    if (!bulkListPreview.length || !session?.id) return;
+
+    const participants = session.participants || [];
+    const existingNames = new Set(participants.map(participant => normalizeParticipantName(participant?.baseName || participant?.name)));
+    const candidates = [];
+
+    bulkListPreview.forEach(item => {
+      const normalizedName = normalizeParticipantName(item.name);
+      if (!normalizedName || existingNames.has(normalizedName)) return;
+      existingNames.add(normalizedName);
+      candidates.push(item);
+    });
+
+    if (!candidates.length) return;
+
+    setIsBulkApplying(true);
+    try {
+      let nextParticipants = [...participants];
+      candidates.forEach(item => {
+        nextParticipants.push(buildNumberedParticipant(item, nextParticipants, session.type === 'Global' ? 'country' : 'city'));
+      });
+
+      await updateDoc(doc(db, "sessions", session.id), { participants: nextParticipants });
+      setBulkListRawText('');
+      setBulkListPreview([]);
+      setBulkListSkipped([]);
+      setBulkListTotalLines(0);
+      setBulkListParseAttempted(false);
+      setIsBulkListOpen(false);
+    } finally {
+      setIsBulkApplying(false);
+    }
   };
 
   const removeParticipant = async (id) => {
@@ -1283,67 +1357,158 @@ export default function SessionBoard() {
                 </div>
               )}
               {(session.type === 'Global' || (session.type === 'Nacional' && selectedParentCountry)) && (
-                <div className="relative" ref={searchRef}>
-                  <div className="relative">
-                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && searchResults.length === 1) {
-                          e.preventDefault();
-                          addParticipant(searchResults[0]).catch(() => {});
-                        }
-                      }}
-                      disabled={session.type === 'Nacional' && loadingCities}
-                      placeholder={session.type === 'Global' ? t.board.addCountryPlaceholder : loadingCities ? t.board.loadingCities : t.board.addCityPlaceholder}
-                      className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm disabled:opacity-40" />
-                    <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
+                <>
+                  <div className="mb-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkListOpen(prev => !prev)}
+                      className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      {t.board.bulkAddButton}
+                    </button>
                   </div>
-                  <AnimatePresence>
-                    {searchResults.length > 0 && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl overflow-hidden z-30 max-h-48 overflow-y-auto p-1 custom-scrollbar"
-                      >
-                        {searchResults.map(c => (
-                          <button key={c.id} onClick={() => addParticipant(c)}
-                            className="scoring-popover-option w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm rounded-lg group">
-                            {c.flag && <span className="text-lg group-hover:scale-110 transition-transform">{c.flag}</span>}
-                            <span className="scoring-popover-secondary font-medium">{c.name}</span>
-                            <Plus className="scoring-popover-icon w-4 h-4 text-app-muted/70 ml-auto transition-colors" />
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                    {session.type === 'Global' && searchQuery.trim().length > 1 && searchResults.length === 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
-                      >
+                  {isBulkListOpen && (
+                    <div className="mb-3 rounded-xl border border-app-border/70 bg-app-card/55 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-app-muted/85">{t.board.bulkAddTitle}</p>
                         <button
-                          onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: '🏳️' })}
-                          className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest"
+                          type="button"
+                          onClick={() => setIsBulkListOpen(false)}
+                          className="text-[11px] text-app-muted/80 hover:text-app-text"
                         >
-                          {t.board.addManualEntry(searchQuery)}
+                          {t.board.bulkAddClose}
                         </button>
-                      </motion.div>
-                    )}
-                    {session.type === 'Nacional' && searchQuery.length > 1 && searchResults.length === 0 && cities.length > 0 && !loadingCities && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
-                      >
-                        <button onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry.flag })}
-                          className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest">
-                          {t.board.addManualEntry(searchQuery)}
+                      </div>
+                      <p className="mt-1 text-xs text-app-muted/75">{t.board.bulkAddHelp}</p>
+                      <textarea
+                        value={bulkListRawText}
+                        onChange={e => setBulkListRawText(e.target.value)}
+                        placeholder={session.type === 'Global' ? t.board.bulkAddPlaceholderGlobal : t.board.bulkAddPlaceholderNational}
+                        className="mt-3 scoring-input w-full rounded-lg min-h-28 p-3 text-xs leading-5 resize-y"
+                      />
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={parseBulkList}
+                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest"
+                        >
+                          {t.board.bulkAddPreviewButton}
                         </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBulkListRawText('');
+                            setBulkListPreview([]);
+                            setBulkListSkipped([]);
+                            setBulkListTotalLines(0);
+                            setBulkListParseAttempted(false);
+                          }}
+                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest"
+                        >
+                          {t.board.bulkAddClear}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!bulkListPreview.length || isBulkApplying}
+                          onClick={() => addParticipantsFromBulkList().catch(() => {})}
+                          className="scoring-btn-primary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
+                        >
+                          {isBulkApplying ? t.board.bulkAddApplying : t.board.bulkAddApply(bulkListPreview.length)}
+                        </button>
+                      </div>
+                      {bulkListParseAttempted && (
+                        <div className="mt-3 rounded-lg border border-app-border/60 bg-app-card/35 p-3">
+                          <p className="text-xs text-app-text">
+                            {t.board.bulkAddPreviewSummary(bulkListPreview.length, bulkListTotalLines, bulkListSkipped.length)}
+                          </p>
+                          {bulkListPreview.length > 0 && (
+                            <div className="mt-2 max-h-28 overflow-auto space-y-1 custom-scrollbar">
+                              {bulkListPreview.map(item => (
+                                <div key={`preview-${item.name}-${item.id}`} className="text-xs text-app-muted/90">
+                                  {item.flag ? `${item.flag} ` : ''}{item.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {bulkListSkipped.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-[11px] text-app-muted/80 uppercase tracking-wider">{t.board.bulkAddSkippedTitle}</p>
+                              <div className="mt-1 max-h-20 overflow-auto space-y-1 custom-scrollbar">
+                                {bulkListSkipped.slice(0, 8).map(item => (
+                                  <div key={`skip-${item.line}-${item.value}`} className="text-[11px] text-app-muted/70">
+                                    {t.board.bulkAddSkippedLine(item.line)}: {item.value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="relative" ref={searchRef}>
+                    <div className="relative">
+                      <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && searchResults.length === 1) {
+                            e.preventDefault();
+                            addParticipant(searchResults[0]).catch(() => {});
+                          }
+                        }}
+                        disabled={session.type === 'Nacional' && loadingCities}
+                        placeholder={session.type === 'Global' ? t.board.addCountryPlaceholder : loadingCities ? t.board.loadingCities : t.board.addCityPlaceholder}
+                        className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm disabled:opacity-40" />
+                      <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
+                    </div>
+                    <AnimatePresence>
+                      {searchResults.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl overflow-hidden z-30 max-h-48 overflow-y-auto p-1 custom-scrollbar"
+                        >
+                          {searchResults.map(c => (
+                            <button key={c.id} onClick={() => addParticipant(c)}
+                              className="scoring-popover-option w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm rounded-lg group">
+                              {c.flag && <span className="text-lg group-hover:scale-110 transition-transform">{c.flag}</span>}
+                              <span className="scoring-popover-secondary font-medium">{c.name}</span>
+                              <Plus className="scoring-popover-icon w-4 h-4 text-app-muted/70 ml-auto transition-colors" />
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                      {session.type === 'Global' && searchQuery.trim().length > 1 && searchResults.length === 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
+                        >
+                          <button
+                            onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: '🏳️' })}
+                            className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest"
+                          >
+                            {t.board.addManualEntry(searchQuery)}
+                          </button>
+                        </motion.div>
+                      )}
+                      {session.type === 'Nacional' && searchQuery.length > 1 && searchResults.length === 0 && cities.length > 0 && !loadingCities && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
+                        >
+                          <button onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry.flag })}
+                            className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest">
+                            {t.board.addManualEntry(searchQuery)}
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </>
               )}
             </div>
           )}
