@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getCountFromServer, getDoc, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
@@ -55,6 +55,7 @@ export default function ScoringLanding() {
   const [sessionCode, setSessionCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [sessionCounter, setSessionCounter] = useState(null);
   const [mobileSection, setMobileSection] = useState('home');
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
   const t = scoringCopy[language];
@@ -76,6 +77,23 @@ export default function ScoringLanding() {
     document.body.style.overflow = showWelcomeSplash ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [showWelcomeSplash]);
+
+  useEffect(() => {
+    let active = true;
+    const loadSessionCounter = async () => {
+      try {
+        const sessionsQuery = query(collection(db, 'sessions'), where('createdAt', '>', 0));
+        const snapshot = await getCountFromServer(sessionsQuery);
+        if (!active) return;
+        setSessionCounter(snapshot.data().count);
+      } catch {
+        if (!active) return;
+        setSessionCounter(null);
+      }
+    };
+    loadSessionCounter();
+    return () => { active = false; };
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -626,6 +644,12 @@ export default function ScoringLanding() {
               {error}
             </div>
           )}
+
+          <div className="pt-4 pb-2 text-center">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-app-muted/55">
+              {t.landing.sessionCounterLabel}: <span className="text-app-text/70 font-bold">{sessionCounter ?? t.landing.sessionCounterUnavailable}</span>
+            </p>
+          </div>
         </main>
 
         <nav
@@ -715,6 +739,9 @@ export default function ScoringLanding() {
         animate={{ opacity: 1 }}
         className="hidden md:block w-full py-10 text-center border-t border-app-border/20 z-10"
       >
+        <p className="text-[10px] text-app-muted/45 font-bold uppercase tracking-[0.2em] mb-2">
+          {t.landing.sessionCounterLabel}: <span className="text-app-text/70">{sessionCounter ?? t.landing.sessionCounterUnavailable}</span>
+        </p>
         <p className="text-[12px] text-app-muted/40 font-medium tracking-wide">
           &copy; {new Date().getFullYear()} PAGEANTS APP &bull; {t.footerByLabel.toUpperCase()}{' '}
           <a href="https://discord.com/users/angelmuse_87856" target="_blank" rel="noopener noreferrer" className="text-app-text/60 hover:text-app-accent transition-colors underline decoration-app-border underline-offset-4 font-bold">ANGEL MUSE DOLL</a>

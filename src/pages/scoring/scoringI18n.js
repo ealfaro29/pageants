@@ -105,7 +105,9 @@ export const scoringCopy = {
       ],
       howToRulesTitle: 'Qué ve el público',
       howToRulesBody: 'Resultados públicos solo muestran fases ya cerradas por el host. La fase en curso permanece oculta.',
-      howToClose: 'Cerrar'
+      howToClose: 'Cerrar',
+      sessionCounterLabel: 'Sesiones creadas',
+      sessionCounterUnavailable: 'No disponible'
     },
     create: {
       title: 'Nueva sesión',
@@ -396,7 +398,9 @@ export const scoringCopy = {
       ],
       howToRulesTitle: 'What the audience sees',
       howToRulesBody: 'Public results only show phases already closed by the host. The active phase stays hidden.',
-      howToClose: 'Close'
+      howToClose: 'Close',
+      sessionCounterLabel: 'Sessions created',
+      sessionCounterUnavailable: 'Unavailable'
     },
     create: {
       title: 'New Session',
