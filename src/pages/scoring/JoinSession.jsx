@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, normalizeScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
+import { normalizeSessionCodeSuffix, resolveLookupSessionIds, SESSION_CODE_PREFIX } from './sessionCodeUtils';
 
 function normalizeJudgeIdentity(value) {
   return String(value || '').trim().toLowerCase();
@@ -17,7 +18,7 @@ export default function JoinSession() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [judgeName, setJudgeName] = useState('');
-  const [sessionCode, setSessionCode] = useState(searchParams.get('code')?.toUpperCase() || '');
+  const [sessionCode, setSessionCode] = useState(normalizeSessionCodeSuffix(searchParams.get('code')));
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [language, setLanguage] = useState(getStoredScoringLanguage());
@@ -31,7 +32,7 @@ export default function JoinSession() {
   useEffect(() => {
     const prefilledCode = searchParams.get('code');
     if (prefilledCode) {
-      setSessionCode(prev => prev || prefilledCode.toUpperCase());
+      setSessionCode(prev => prev || normalizeSessionCodeSuffix(prefilledCode));
     }
 
     if (searchParams.get('removed') === '1') {
@@ -49,7 +50,11 @@ export default function JoinSession() {
     setError('');
 
     try {
-      const code = sessionCode.trim().toUpperCase();
+      const [code] = resolveLookupSessionIds(sessionCode);
+      if (!code) {
+        setSubmitting(false);
+        return;
+      }
       const sessionRef = doc(db, "sessions", code);
       const docSnap = await getDoc(sessionRef);
       
@@ -123,14 +128,20 @@ export default function JoinSession() {
             
             <div>
               <label className="block text-xs font-bold tracking-widest text-app-muted/80 uppercase mb-2">{t.join.sessionCodeLabel}</label>
-              <input 
-                type="text" 
-                required
-                value={sessionCode}
-                onChange={e => { setSessionCode(e.target.value); setError(''); }}
-                className="scoring-input w-full rounded-lg h-12 px-4 text-sm uppercase font-mono tracking-widest"
-                placeholder={t.join.sessionCodePlaceholder}
-              />
+              <div className="flex items-center">
+                <span className="scoring-input inline-flex h-12 items-center rounded-l-lg border-r-0 px-4 text-sm font-mono tracking-widest text-app-muted/70">
+                  {SESSION_CODE_PREFIX}
+                </span>
+                <input 
+                  type="text" 
+                  required
+                  maxLength={6}
+                  value={sessionCode}
+                  onChange={e => { setSessionCode(normalizeSessionCodeSuffix(e.target.value)); setError(''); }}
+                  className="scoring-input w-full rounded-r-lg rounded-l-none h-12 px-4 text-sm uppercase font-mono tracking-widest"
+                  placeholder={t.join.sessionCodePlaceholder}
+                />
+              </div>
             </div>
 
             {error && (

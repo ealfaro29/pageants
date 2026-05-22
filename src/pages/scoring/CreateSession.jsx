@@ -7,6 +7,7 @@ import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getDefaultPhaseName, getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
 import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
+import { buildSessionId } from './sessionCodeUtils';
 
 export default function CreateSession() {
   const [theme] = useState(getStoredScoringTheme());
@@ -26,8 +27,6 @@ export default function CreateSession() {
     document.title = t.appTitle;
   }, [language, t]);
 
-  const generateSessionId = () => 'MU-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!judgeName.trim() || !sessionName.trim()) { setError(t.create.completeFields); return; }
@@ -35,7 +34,7 @@ export default function CreateSession() {
     
     setSubmitting(true);
     setError('');
-    const sessionId = generateSessionId();
+    const sessionId = buildSessionId();
     
     const sessionData = {
       id: sessionId,

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
-import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2, Lock } from 'lucide-react';
+import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
   getCountryDisplayName,
   getDefaultPhaseName,
@@ -156,6 +156,10 @@ export default function SessionBoard() {
   const [theme, setTheme] = useState(getStoredScoringTheme());
   const [accentColor] = useState(getStoredScoringAccent());
   const [activeTab, setActiveTab] = useState('scoring'); // 'scoring', 'results', 'settings'
+  const [isCutoffModalOpen, setIsCutoffModalOpen] = useState(false);
+  const [cutoffModalValue, setCutoffModalValue] = useState('');
+  const [cutoffModalMax, setCutoffModalMax] = useState(0);
+  const [cutoffModalError, setCutoffModalError] = useState('');
 
   // Search state
   const [countries, setCountries] = useState([]);
@@ -587,40 +591,49 @@ export default function SessionBoard() {
     setForceAttempted(false);
   };
 
-  const requestCutoffBeforeAdvance = async () => {
-    const existingCutoff = Number.parseInt(currentPhase.cutoff, 10);
-    if (Number.isFinite(existingCutoff) && existingCutoff > 0) return existingCutoff;
-
-    const maxAllowed = currentParticipants.length;
-    if (!maxAllowed) return null;
-
-    let suggestedValue = String(maxAllowed);
-    while (true) {
-      const rawValue = window.prompt(t.board.missingCutoffPrompt(maxAllowed), suggestedValue);
-      if (rawValue === null) return null;
-
-      const parsed = Number.parseInt(rawValue, 10);
-      if (Number.isFinite(parsed) && parsed >= 1 && parsed <= maxAllowed) {
-        await updatePhaseCutoff(String(parsed));
-        return parsed;
-      }
-
-      window.alert(t.board.invalidCutoffPrompt(maxAllowed));
-      suggestedValue = rawValue;
-    }
+  const openCutoffModal = (maxAllowed) => {
+    setCutoffModalMax(maxAllowed);
+    setCutoffModalValue(String(maxAllowed));
+    setCutoffModalError('');
+    setIsCutoffModalOpen(true);
   };
 
-  const handlePhaseAction = async () => {
-    setUndoAttempted(false);
-    const selectedCutoff = await requestCutoffBeforeAdvance();
-    if (!selectedCutoff) return;
+  const closeCutoffModal = () => {
+    setIsCutoffModalOpen(false);
+    setCutoffModalError('');
+  };
 
+  const executePhaseAction = async (selectedCutoff) => {
+    if (!selectedCutoff) return;
     if (selectedCutoff === 1) {
       revealWinner(selectedCutoff).catch(() => {});
       return;
     }
-
     advancePhase(selectedCutoff).catch(() => {});
+  };
+
+  const handlePhaseAction = async () => {
+    setUndoAttempted(false);
+    const existingCutoff = Number.parseInt(currentPhase.cutoff, 10);
+    if (Number.isFinite(existingCutoff) && existingCutoff > 0) {
+      executePhaseAction(existingCutoff);
+      return;
+    }
+    const maxAllowed = currentParticipants.length;
+    if (!maxAllowed) return;
+    openCutoffModal(maxAllowed);
+  };
+
+  const submitCutoffModal = async () => {
+    const parsed = Number.parseInt(cutoffModalValue, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > cutoffModalMax) {
+      setCutoffModalError(t.board.invalidCutoffPrompt(cutoffModalMax));
+      return;
+    }
+
+    await updatePhaseCutoff(String(parsed));
+    closeCutoffModal();
+    executePhaseAction(parsed);
   };
 
   const copyCode = (e) => {
@@ -775,6 +788,13 @@ export default function SessionBoard() {
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
   const shouldHideCutInsightsForJudge = !isHost && !isSessionComplete && currentPhase.status === 'active';
   const shouldShowCutPreview = !shouldHideCutInsightsForJudge;
+  const completedPhaseIndexes = phases
+    .map((phase, idx) => (phase.status === 'completed' ? idx : null))
+    .filter(idx => idx !== null);
+  const lastCompletedPhaseIndex = completedPhaseIndexes.length > 0
+    ? completedPhaseIndexes[completedPhaseIndexes.length - 1]
+    : null;
+  const lastCompletedPhase = lastCompletedPhaseIndex !== null ? phases[lastCompletedPhaseIndex] : null;
   const canUndoPhase = isHost && (currentPhaseIndex > 0 || isSessionComplete);
   const currentPhaseHasSavedScores = phaseHasSavedScores(currentPhaseIndex);
 
@@ -885,6 +905,16 @@ export default function SessionBoard() {
   const winnerScoreValue = winnerResult
     ? (isTotalScoring ? winnerResult.aggregateTotal : winnerResult.currentPhaseAverage)
     : 0;
+  const lastSubmittedResults = lastCompletedPhaseIndex !== null
+    ? rankParticipantsByPhaseScores(
+      getPhaseParticipants(lastCompletedPhaseIndex),
+      scores[`phase_${lastCompletedPhaseIndex}`] || {}
+    )
+    : [];
+  const lastSubmittedCutoff = lastCompletedPhase?.cutoff || lastSubmittedResults.length;
+  const lastSubmittedQualifiedIds = new Set(
+    lastSubmittedResults.slice(0, lastSubmittedCutoff).map(participant => participant.id)
+  );
 
   const canAdvance = !isSessionComplete && currentParticipants.length > 0;
 
@@ -1435,12 +1465,35 @@ export default function SessionBoard() {
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
               {shouldHideCutInsightsForJudge && (
-                <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-8 text-center">
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-app-border/60 bg-app-border/20 text-app-muted">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                  <p className="text-sm font-semibold text-app-text">{t.board.publicResultsPending}</p>
-                  <p className="text-xs text-app-muted/80 mt-2">{t.board.publicJudgesScoring}</p>
+                <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.lastSubmittedResultsTitle}</p>
+                  {lastCompletedPhase ? (
+                    <p className="text-xs text-app-muted/80 mb-3">
+                      {t.board.submittedPhaseLabel}: {lastCompletedPhase.name}
+                    </p>
+                  ) : null}
+                  {lastSubmittedResults.length === 0 ? (
+                    <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {lastSubmittedResults.map((participant, idx) => {
+                        const isQualified = lastSubmittedQualifiedIds.has(participant.id);
+                        return (
+                          <div
+                            key={`last-submitted-${participant.id}`}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isQualified ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
+                          >
+                            <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
+                            <span className="text-lg">{participant.flag}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm truncate ${isQualified ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
+                            </div>
+                            <p className="text-sm font-mono font-bold text-app-text">{participant.avg.toFixed(2)}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
               {!shouldHideCutInsightsForJudge && globalResults.length === 0 && (
@@ -1579,6 +1632,51 @@ export default function SessionBoard() {
           <span className="text-[10px] font-bold uppercase tracking-tighter">{t.board.moreTitle || 'Más'}</span>
         </button>
       </div>
+
+      {isCutoffModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-app-border bg-app-card p-5">
+            <h3 className="text-lg font-black text-app-text">{t.board.cutoffModalTitle}</h3>
+            <p className="text-sm text-app-muted/80 mt-2">{t.board.cutoffModalBody(cutoffModalMax)}</p>
+            <div className="mt-4">
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/70 mb-2">
+                {t.board.cutoffModalInputLabel}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={cutoffModalMax || 1}
+                value={cutoffModalValue}
+                onChange={event => {
+                  setCutoffModalValue(event.target.value);
+                  setCutoffModalError('');
+                }}
+                className="scoring-input w-full rounded-lg h-12 px-4 text-lg font-mono font-bold text-center"
+                autoFocus
+              />
+            </div>
+            {cutoffModalError && (
+              <p className="mt-3 text-xs text-red-300">{cutoffModalError}</p>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeCutoffModal}
+                className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest"
+              >
+                {t.board.cutoffModalCancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => submitCutoffModal().catch(() => {})}
+                className="scoring-btn-primary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest"
+              >
+                {t.board.cutoffModalConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODALS */}
       <PhaseReportModal

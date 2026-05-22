@@ -20,6 +20,7 @@ import {
   persistScoringTheme
 } from './scoringTheme';
 import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
+import { buildSessionId, normalizeSessionCodeSuffix, resolveLookupSessionIds, SESSION_CODE_PREFIX } from './sessionCodeUtils';
 
 function normalizeJudgeIdentity(value) {
   return String(value || '').trim().toLowerCase();
@@ -68,8 +69,6 @@ export default function ScoringLanding() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
-  const generateSessionId = () => 'MU-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-
   const resetRoleFlow = () => {
     setActiveRole(null);
     setError('');
@@ -86,7 +85,7 @@ export default function ScoringLanding() {
 
     setSubmitting(true);
     setError('');
-    const nextSessionId = generateSessionId();
+    const nextSessionId = buildSessionId();
     const sessionData = {
       id: nextSessionId,
       name: sessionName.trim(),
@@ -120,7 +119,8 @@ export default function ScoringLanding() {
 
     setSubmitting(true);
     setError('');
-    const code = sessionCode.trim().toUpperCase();
+    const [code] = resolveLookupSessionIds(sessionCode);
+    if (!code) return;
 
     try {
       const sessionRef = doc(db, 'sessions', code);
@@ -168,7 +168,8 @@ export default function ScoringLanding() {
   const handleSpectatorSubmit = (event) => {
     event.preventDefault();
     if (!sessionCode.trim()) return;
-    const code = sessionCode.trim().toUpperCase();
+    const [code] = resolveLookupSessionIds(sessionCode);
+    if (!code) return;
     navigate(`/session/${encodeURIComponent(code)}/results`);
   };
 
@@ -251,6 +252,37 @@ export default function ScoringLanding() {
             {t.landing.howToButton}
           </Link>
         </motion.div>
+
+        <motion.section variants={itemVariants} className="w-full max-w-4xl mb-12">
+          <div className="relative overflow-hidden rounded-[2rem] border border-app-border/70 bg-app-card/55 backdrop-blur-xl shadow-[0_30px_80px_rgba(0,0,0,0.45)] min-h-[360px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(251,191,36,0.16),transparent_45%),radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.08),transparent_40%)] pointer-events-none" />
+            <div className="relative z-10 grid grid-cols-12 h-full">
+              <div className="col-span-5 relative">
+                <img
+                  src="/angel-muse-doll.png"
+                  alt="Angel Muse Doll"
+                  className="absolute -bottom-2 -left-8 h-[420px] w-auto max-w-none object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.55)]"
+                />
+              </div>
+              <div className="col-span-7 p-10 flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-app-accent/90 font-bold mb-3">
+                  {t.landing.angelHeroKicker} <span className="text-app-text">Angel Muse Doll</span>
+                </p>
+                <h2 className="text-6xl font-light tracking-tight text-app-text leading-none mb-6">{t.landing.angelHeroTitle}</h2>
+                <p className="text-sm md:text-base text-app-muted/85 leading-relaxed max-w-xl">
+                  {t.landing.angelHeroBody}
+                </p>
+                <Link
+                  to="/manual"
+                  className="mt-8 inline-flex w-fit items-center gap-2 rounded-xl border border-app-border/70 bg-app-card/55 px-5 py-3 text-xs font-bold uppercase tracking-[0.22em] text-app-text hover:text-app-accent hover:border-app-accent/40 transition-colors no-underline"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {t.landing.angelHeroCta}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </motion.section>
 
         <motion.section variants={itemVariants} className="w-full max-w-3xl">
           <div className="scoring-panel rounded-[2rem] border border-app-border/70 bg-app-card/50 p-6 md:p-8">
@@ -366,14 +398,20 @@ export default function ScoringLanding() {
                       placeholder={t.join.judgeNamePlaceholder}
                       required
                     />
-                    <input
-                      type="text"
-                      value={sessionCode}
-                      onChange={event => { setSessionCode(event.target.value); setError(''); }}
-                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest"
-                      placeholder={t.join.sessionCodePlaceholder}
-                      required
-                    />
+                    <div className="flex items-center">
+                      <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+                        {SESSION_CODE_PREFIX}
+                      </span>
+                      <input
+                        type="text"
+                        value={sessionCode}
+                        onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }}
+                        className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest"
+                        placeholder={t.join.sessionCodePlaceholder}
+                        maxLength={6}
+                        required
+                      />
+                    </div>
                     <div className="flex items-center gap-2 pt-1">
                       <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
                         {t.landing.workflowBack}
@@ -387,14 +425,20 @@ export default function ScoringLanding() {
 
                 {activeRole === 'spectator' && (
                   <form onSubmit={handleSpectatorSubmit} className="space-y-3">
-                    <input
-                      type="text"
-                      value={sessionCode}
-                      onChange={event => { setSessionCode(event.target.value); setError(''); }}
-                      className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest"
-                      placeholder={t.resultsAccess.sessionCodePlaceholder}
-                      required
-                    />
+                    <div className="flex items-center">
+                      <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+                        {SESSION_CODE_PREFIX}
+                      </span>
+                      <input
+                        type="text"
+                        value={sessionCode}
+                        onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }}
+                        className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest"
+                        placeholder={t.resultsAccess.sessionCodePlaceholder}
+                        maxLength={6}
+                        required
+                      />
+                    </div>
                     <div className="flex items-center gap-2 pt-1">
                       <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
                         {t.landing.workflowBack}
@@ -446,6 +490,25 @@ export default function ScoringLanding() {
               </div>
               <h2 className="text-2xl font-black tracking-tight">{t.landing.mobileWelcomeTitle}</h2>
               <p className="text-sm text-app-muted/85 leading-relaxed">{t.landing.mobileWelcomeBody}</p>
+              <div className="relative overflow-hidden rounded-2xl border border-app-border/70 bg-app-card/45 min-h-[200px]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.15),transparent_45%)] pointer-events-none" />
+                <img
+                  src="/angel-muse-doll.png"
+                  alt="Angel Muse Doll"
+                  className="absolute -bottom-4 -left-10 h-[250px] w-auto object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.45)]"
+                />
+                <div className="relative z-10 ml-[38%] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-app-accent/90 font-bold">{t.landing.angelHeroKicker}</p>
+                  <h3 className="text-2xl font-light text-app-text mt-1">{t.landing.angelHeroTitle}</h3>
+                  <Link
+                    to="/manual"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-app-border/70 bg-app-card/60 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-app-text no-underline"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    {t.landing.angelHeroCta}
+                  </Link>
+                </div>
+              </div>
               <div className="grid grid-cols-1 gap-2">
                 <button type="button" onClick={() => setMobileSection('host')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
                   <p className="text-sm font-bold">{t.landing.roleHost}</p>
@@ -506,7 +569,12 @@ export default function ScoringLanding() {
               <h3 className="text-lg font-black mb-3">{t.landing.roleJudge}</h3>
               <form onSubmit={handleJudgeSubmit} className="space-y-3">
                 <input type="text" value={judgeName} onChange={event => { setJudgeName(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm" placeholder={t.join.judgeNamePlaceholder} required />
-                <input type="text" value={sessionCode} onChange={event => { setSessionCode(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.join.sessionCodePlaceholder} required />
+                <div className="flex items-center">
+                  <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+                    {SESSION_CODE_PREFIX}
+                  </span>
+                  <input type="text" value={sessionCode} onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }} className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.join.sessionCodePlaceholder} maxLength={6} required />
+                </div>
                 <button type="submit" disabled={submitting} className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
                   {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.join.submitBusy}</> : t.join.submitIdle}
                 </button>
@@ -518,7 +586,12 @@ export default function ScoringLanding() {
             <section className="scoring-panel rounded-2xl p-4">
               <h3 className="text-lg font-black mb-3">{t.landing.roleSpectator}</h3>
               <form onSubmit={handleSpectatorSubmit} className="space-y-3">
-                <input type="text" value={sessionCode} onChange={event => { setSessionCode(event.target.value); setError(''); }} className="scoring-input w-full rounded-lg h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.resultsAccess.sessionCodePlaceholder} required />
+                <div className="flex items-center">
+                  <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+                    {SESSION_CODE_PREFIX}
+                  </span>
+                  <input type="text" value={sessionCode} onChange={event => { setSessionCode(normalizeSessionCodeSuffix(event.target.value)); setError(''); }} className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest" placeholder={t.resultsAccess.sessionCodePlaceholder} maxLength={6} required />
+                </div>
                 <button type="submit" className="scoring-btn-primary w-full rounded-lg h-11 text-xs font-bold uppercase tracking-widest">
                   {t.resultsAccess.submitIdle}
                 </button>

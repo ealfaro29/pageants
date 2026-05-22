@@ -4,13 +4,14 @@ import { ArrowLeft } from 'lucide-react';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
 import { getStoredScoringLanguage, persistScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
+import { normalizeSessionCodeSuffix, resolveLookupSessionIds, SESSION_CODE_PREFIX } from './sessionCodeUtils';
 
 export default function ViewResultsAccess() {
   const [theme] = useState(getStoredScoringTheme());
   const [accentColor] = useState(getStoredScoringAccent());
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [sessionCode, setSessionCode] = useState(searchParams.get('code')?.toUpperCase() || '');
+  const [sessionCode, setSessionCode] = useState(normalizeSessionCodeSuffix(searchParams.get('code')));
   const [language, setLanguage] = useState(getStoredScoringLanguage());
   const t = scoringCopy[language];
 
@@ -21,7 +22,7 @@ export default function ViewResultsAccess() {
 
   const handleViewResults = (event) => {
     event.preventDefault();
-    const code = sessionCode.trim().toUpperCase();
+    const [code] = resolveLookupSessionIds(sessionCode);
     if (!code) return;
     navigate(`/session/${encodeURIComponent(code)}/results`);
   };
@@ -48,14 +49,20 @@ export default function ViewResultsAccess() {
           <form onSubmit={handleViewResults} className="space-y-5">
             <div>
               <label className="block text-xs font-bold tracking-widest text-app-muted/80 uppercase mb-2">{t.resultsAccess.sessionCodeLabel}</label>
-              <input
-                type="text"
-                required
-                value={sessionCode}
-                onChange={event => setSessionCode(event.target.value)}
-                className="scoring-input w-full rounded-lg h-12 px-4 text-sm uppercase font-mono tracking-widest"
-                placeholder={t.resultsAccess.sessionCodePlaceholder}
-              />
+              <div className="flex items-center">
+                <span className="scoring-input inline-flex h-12 items-center rounded-l-lg border-r-0 px-4 text-sm font-mono tracking-widest text-app-muted/70">
+                  {SESSION_CODE_PREFIX}
+                </span>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={sessionCode}
+                  onChange={event => setSessionCode(normalizeSessionCodeSuffix(event.target.value))}
+                  className="scoring-input w-full rounded-r-lg rounded-l-none h-12 px-4 text-sm uppercase font-mono tracking-widest"
+                  placeholder={t.resultsAccess.sessionCodePlaceholder}
+                />
+              </div>
             </div>
 
             <button
