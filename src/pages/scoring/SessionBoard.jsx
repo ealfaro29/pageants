@@ -113,6 +113,10 @@ function judgeListIncludes(list, judgeName) {
   return Array.isArray(list) && list.some(entry => normalizeJudgeIdentity(entry) === normalizedJudge);
 }
 
+function getJudgeSubmissionKey(judgeName) {
+  return normalizeJudgeIdentity(judgeName).replace(/[^a-z0-9_-]/g, '_');
+}
+
 function getVotingJudges(sessionData) {
   const includeHostVote = sessionData?.hostCanVote !== false;
   const hostName = sessionData?.host;
@@ -347,7 +351,7 @@ export default function SessionBoard() {
       updateDoc(doc(db, "sessions", sessionId), { hostLastSeenAt: Date.now() }).catch(() => {});
     };
     pingHostPresence();
-    const timer = setInterval(pingHostPresence, 20000);
+    const timer = setInterval(pingHostPresence, 60000);
     return () => clearInterval(timer);
   }, [sessionId, session, judgeName]);
 
@@ -390,8 +394,10 @@ export default function SessionBoard() {
     if (!currentlySubmitted) return;
 
     setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: false }));
+    const submissionKey = getJudgeSubmissionKey(judgeName);
     updateDoc(doc(db, "sessions", session.id), {
-      [`phases.${currentPhaseIndex}.submittedJudges`]: arrayRemove(judgeName)
+      [`phases.${currentPhaseIndex}.submittedJudges`]: arrayRemove(judgeName),
+      [`phases.${currentPhaseIndex}.submittedScoreSheets.${submissionKey}`]: deleteField()
     }).catch(() => {});
   };
 
@@ -428,19 +434,17 @@ export default function SessionBoard() {
     const currentPhaseKey = `phase_${currentPhaseIndex}`;
 
     try {
-      const participantScoresPayload = {};
+      const judgeSubmissionPayload = {};
       currentParticipants.forEach(participant => {
         const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName];
         const parsed = Number.parseFloat(raw);
         const clamped = Math.min(Math.max(parsed, 0), 10);
-        participantScoresPayload[participant.id] = { [judgeName]: clamped };
+        judgeSubmissionPayload[participant.id] = clamped;
       });
 
-      await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
-        [currentPhaseKey]: participantScoresPayload
-      }, { merge: true });
-
+      const submissionKey = getJudgeSubmissionKey(judgeName);
       await updateDoc(doc(db, "sessions", session.id), {
+        [`phases.${currentPhaseIndex}.submittedScoreSheets.${submissionKey}`]: judgeSubmissionPayload,
         [`phases.${currentPhaseIndex}.submittedJudges`]: arrayUnion(judgeName)
       });
 
@@ -661,15 +665,32 @@ export default function SessionBoard() {
 
   const advancePhase = async (cutoffOverride = null) => {
     const phaseKey = `phase_${currentPhaseIndex}`;
-    let phaseScores = scores[phaseKey] || {};
+    let phaseScores = { ...(scores[phaseKey] || {}) };
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
     const judges = getVotingJudges(session);
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
+    const submittedScoreSheets = currentPhase?.submittedScoreSheets && typeof currentPhase.submittedScoreSheets === 'object'
+      ? currentPhase.submittedScoreSheets
+      : {};
 
-    // Check if all judges have scored all participants
-    const allComplete = currentParticipants.every(p => {
+    judges.forEach(judge => {
+      if (!judgeListIncludes(currentPhase?.submittedJudges, judge)) return;
+      const sheet = submittedScoreSheets[getJudgeSubmissionKey(judge)];
+      if (!sheet || typeof sheet !== 'object') return;
+      currentParticipants.forEach(participant => {
+        const parsed = Number.parseFloat(sheet[participant.id]);
+        if (!Number.isFinite(parsed)) return;
+        phaseScores[participant.id] = { ...(phaseScores[participant.id] || {}) };
+        phaseScores[participant.id][judge] = Math.min(Math.max(parsed, 0), 10);
+      });
+    });
+
+    const hasNonHostJudges = judges.some(j => normalizeJudgeIdentity(j) !== normalizeJudgeIdentity(session.host));
+
+    // If only host is voting, skip judge-completion checks
+    const allComplete = !hasNonHostJudges || currentParticipants.every(p => {
       const pScores = phaseScores[p.id] || {};
       return judges.every(j => pScores[j] !== undefined && pScores[j] !== null);
     });
@@ -681,22 +702,21 @@ export default function SessionBoard() {
 
     // Force: fill missing scores with 1
     if (!allComplete) {
-      const updates = {};
       const nextPhaseScores = { ...phaseScores };
       currentParticipants.forEach(p => {
         nextPhaseScores[p.id] = { ...(nextPhaseScores[p.id] || {}) };
         judges.forEach(j => {
           if (!phaseScores[p.id]?.[j] && phaseScores[p.id]?.[j] !== 0) {
-            updates[`${phaseKey}.${p.id}.${j}`] = 1;
             nextPhaseScores[p.id][j] = 1;
           }
         });
       });
-      if (Object.keys(updates).length > 0) {
-        await updateDoc(doc(db, "sessions", `${sessionId}_scores`), updates);
-      }
       phaseScores = nextPhaseScores;
     }
+
+    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
+      [phaseKey]: phaseScores
+    }, { merge: true });
 
     // Mark current phase complete, add new phase
     const nextPhases = [...phases];
@@ -727,14 +747,30 @@ export default function SessionBoard() {
 
   const revealWinner = async (cutoffOverride = null) => {
     const phaseKey = `phase_${currentPhaseIndex}`;
-    let phaseScores = scores[phaseKey] || {};
+    let phaseScores = { ...(scores[phaseKey] || {}) };
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
     const judges = getVotingJudges(session);
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
+    const submittedScoreSheets = currentPhase?.submittedScoreSheets && typeof currentPhase.submittedScoreSheets === 'object'
+      ? currentPhase.submittedScoreSheets
+      : {};
 
-    const allComplete = currentParticipants.every(participant => {
+    judges.forEach(judge => {
+      if (!judgeListIncludes(currentPhase?.submittedJudges, judge)) return;
+      const sheet = submittedScoreSheets[getJudgeSubmissionKey(judge)];
+      if (!sheet || typeof sheet !== 'object') return;
+      currentParticipants.forEach(participant => {
+        const parsed = Number.parseFloat(sheet[participant.id]);
+        if (!Number.isFinite(parsed)) return;
+        phaseScores[participant.id] = { ...(phaseScores[participant.id] || {}) };
+        phaseScores[participant.id][judge] = Math.min(Math.max(parsed, 0), 10);
+      });
+    });
+
+    const hasNonHostJudges = judges.some(j => normalizeJudgeIdentity(j) !== normalizeJudgeIdentity(session.host));
+    const allComplete = !hasNonHostJudges || currentParticipants.every(participant => {
       const participantScores = phaseScores[participant.id] || {};
       return judges.every(judge => participantScores[judge] !== undefined && participantScores[judge] !== null);
     });
@@ -745,22 +781,21 @@ export default function SessionBoard() {
     }
 
     if (!allComplete) {
-      const updates = {};
       const nextPhaseScores = { ...phaseScores };
       currentParticipants.forEach(participant => {
         nextPhaseScores[participant.id] = { ...(nextPhaseScores[participant.id] || {}) };
         judges.forEach(judge => {
           if (!phaseScores[participant.id]?.[judge] && phaseScores[participant.id]?.[judge] !== 0) {
-            updates[`${phaseKey}.${participant.id}.${judge}`] = 1;
             nextPhaseScores[participant.id][judge] = 1;
           }
         });
       });
-      if (Object.keys(updates).length > 0) {
-        await updateDoc(doc(db, "sessions", `${sessionId}_scores`), updates);
-      }
       phaseScores = nextPhaseScores;
     }
+
+    await setDoc(doc(db, "sessions", `${sessionId}_scores`), {
+      [phaseKey]: phaseScores
+    }, { merge: true });
 
     const rankedCurrentParticipants = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
     const scoreSnapshot = { ...scores, [phaseKey]: phaseScores };
@@ -897,6 +932,9 @@ export default function SessionBoard() {
   const phaseKey = `phase_${currentPhaseIndex}`;
   const phaseScores = scores[phaseKey] || {};
   const phaseSubmittedJudges = Array.isArray(currentPhase.submittedJudges) ? currentPhase.submittedJudges : [];
+  const currentPhaseSubmissionSheets = currentPhase?.submittedScoreSheets && typeof currentPhase.submittedScoreSheets === 'object'
+    ? currentPhase.submittedScoreSheets
+    : {};
 
   // Get participants for a given phase index
   const getPhaseParticipants = (phaseIdx, options = {}) => {
@@ -970,11 +1008,12 @@ export default function SessionBoard() {
   };
 
   // Score + sort participants for current phase
+  const currentJudgeSubmissionSheet = currentPhaseSubmissionSheets[getJudgeSubmissionKey(judgeName)] || {};
   const scoredParticipants = currentParticipants.map(p => {
     const pScores = phaseScores[p.id] || {};
     const vals = Object.values(pScores).filter(v => v !== null && v !== undefined);
     const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    const myScore = pScores[judgeName];
+    const myScore = pScores[judgeName] ?? currentJudgeSubmissionSheet[p.id];
     return { ...p, avg, voteCount: vals.length, myScore };
   });
   const tableParticipants = [
@@ -994,30 +1033,22 @@ export default function SessionBoard() {
   const qualifiedIds = new Set(rankedForCutoff.slice(0, cutoffLimit).map(p => p.id));
 
   // Check completion for advance button
-  const allJudgesComplete = judges.length > 0 && judges.every(judge => {
-    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
-    if (!hasSubmitted) return false;
+  const hasNonHostJudges = judges.some(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(session.host));
+  const judgeHasSubmittedPhase = (judge) => {
+    if (!judgeListIncludes(phaseSubmittedJudges, judge)) return false;
+    const submissionSheet = currentPhaseSubmissionSheets[getJudgeSubmissionKey(judge)];
+    if (!submissionSheet || typeof submissionSheet !== 'object') return false;
     return currentParticipants.every(participant => {
-      const participantScores = phaseScores[participant.id] || {};
-      return participantScores[judge] !== undefined && participantScores[judge] !== null;
+      const parsed = Number.parseFloat(submissionSheet[participant.id]);
+      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
     });
-  });
-  const votedJudges = judges.filter(judge => {
-    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
-    if (!hasSubmitted) return false;
-    return currentParticipants.every(participant => {
-      const participantScores = phaseScores[participant.id] || {};
-      return participantScores[judge] !== undefined && participantScores[judge] !== null;
-    });
-  }).length;
-  const pendingSubmitJudges = judges.filter(judge => {
-    const hasSubmitted = judgeListIncludes(phaseSubmittedJudges, judge);
-    if (!hasSubmitted) return true;
-    return currentParticipants.some(participant => {
-      const participantScores = phaseScores[participant.id] || {};
-      return participantScores[judge] === undefined || participantScores[judge] === null;
-    });
-  });
+  };
+
+  const allJudgesComplete = !hasNonHostJudges || (judges.length > 0 && judges.every(judge => judgeHasSubmittedPhase(judge)));
+  const votedJudges = !hasNonHostJudges
+    ? judges.length
+    : judges.filter(judge => judgeHasSubmittedPhase(judge)).length;
+  const pendingSubmitJudges = !hasNonHostJudges ? [] : judges.filter(judge => !judgeHasSubmittedPhase(judge));
   const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
@@ -1866,7 +1897,7 @@ export default function SessionBoard() {
         {/* RIGHT PANEL: RESULTADOS GLOBALES (CARD) - 40% */}
         <div className={`${activeTab !== 'results' ? 'hidden lg:flex' : 'flex'} lg:w-[40%] flex flex-col overflow-hidden shrink-0 bg-app-card rounded-2xl shadow-xl border border-app-border`}>
           <div className="px-6 py-5 border-b border-app-border/50 bg-app-card shrink-0">
-            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{isTotalScoring ? (t.board.resultsPanelTitleTotal || t.board.globalResults) : (t.board.resultsPanelTitlePhase || t.board.globalResults)}</h3>
+            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{t.board.lastSubmittedResultsTitle}</h3>
             <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(p => p.status === 'completed').length)}</p>
             <p className="text-[10px] text-app-muted/50 mt-1">
               {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
@@ -1874,68 +1905,35 @@ export default function SessionBoard() {
           </div>
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
-              {shouldHideCutInsightsForJudge && (
-                <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-4">
-                  <p className="text-[10px] uppercase tracking-widest text-app-muted/70 mb-1">{t.board.lastSubmittedResultsTitle}</p>
-                  {lastCompletedPhase ? (
-                    <p className="text-xs text-app-muted/80 mb-3">
-                      {t.board.submittedPhaseLabel}: {lastCompletedPhase.name}
-                    </p>
-                  ) : null}
-                  {lastSubmittedResults.length === 0 ? (
-                    <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {lastSubmittedResults.map((participant, idx) => {
-                        const isQualified = lastSubmittedQualifiedIds.has(participant.id);
-                        return (
-                          <div
-                            key={`last-submitted-${participant.id}`}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isQualified ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
-                          >
-                            <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
-                            <span className="text-lg">{participant.flag}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm truncate ${isQualified ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
-                            </div>
-                            <p className="text-sm font-mono font-bold text-app-text">{participant.avg.toFixed(2)}</p>
+              <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-4">
+                {lastCompletedPhase ? (
+                  <p className="text-xs text-app-muted/80 mb-3">
+                    {t.board.submittedPhaseLabel}: {lastCompletedPhase.name}
+                  </p>
+                ) : null}
+                {lastSubmittedResults.length === 0 ? (
+                  <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {lastSubmittedResults.map((participant, idx) => {
+                      const isQualified = lastSubmittedQualifiedIds.has(participant.id);
+                      return (
+                        <div
+                          key={`last-submitted-${participant.id}`}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isQualified ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
+                        >
+                          <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
+                          <span className="text-lg">{participant.flag}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm truncate ${isQualified ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              {!shouldHideCutInsightsForJudge && globalResults.length === 0 && (
-                <p className="text-sm text-app-muted/50 text-center py-10">{t.board.noGlobalParticipants}</p>
-              )}
-              {!shouldHideCutInsightsForJudge && globalResults.map((p, idx) => {
-                const eliminated = p.eliminated;
-                const isWinner = session.winnerId === p.id;
-                return (
-                  <div key={p.id} className={`flex items-center gap-3 px-3 py-4 mb-2 rounded-xl transition-colors ${
-                    isWinner ? 'border border-amber-300/20 bg-amber-300/5' : eliminated ? 'opacity-30' : 'hover:bg-app-border/30'
-                  }`}>
-                    <div className={`w-6 text-center font-mono text-xs font-bold ${eliminated ? 'text-app-muted/30' : isWinner || idx === 0 ? 'text-app-text' : 'text-app-muted/70'}`}>{idx + 1}</div>
-                    <span className={`text-xl ${eliminated ? 'grayscale' : ''}`}>{p.flag}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm truncate ${eliminated ? 'text-app-muted/50 line-through' : isWinner || idx === 0 ? 'text-app-text font-medium' : 'text-app-muted'}`}>{p.name}</p>
-                      {isWinner && (
-                        <p className="text-[10px] text-amber-200/70 uppercase tracking-tighter">{t.board.winnerTitle}</p>
-                      )}
-                      {eliminated && (
-                        <p className="text-[10px] text-red-400/50">{t.board.eliminatedIn(phases[p.lastActivePhase]?.name || getDefaultPhaseName(p.lastActivePhase, currentLanguage))}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase tracking-widest text-app-muted/50 mb-0.5">
-                        {isTotalScoring ? (t.board.resultsPanelMetricTotal || t.board.total) : (t.board.resultsPanelMetricPhase || t.board.average)}
-                      </p>
-                      <p className={`text-sm font-mono font-bold ${eliminated ? 'text-app-muted/30' : 'text-app-text'}`}>{p.displayScore.toFixed(2)}</p>
-                    </div>
+                          <p className="text-sm font-mono font-bold text-app-text">{participant.avg.toFixed(2)}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           </div>
         </div>
