@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
 import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
-import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
+import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2, Lock } from 'lucide-react';
 import {
   getCountryDisplayName,
   getDefaultPhaseName,
@@ -443,11 +443,14 @@ export default function SessionBoard() {
     });
   };
 
-  const advancePhase = async () => {
+  const advancePhase = async (cutoffOverride = null) => {
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = scores[phaseKey] || {};
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
     const judges = session.judges || [];
+    const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
+      ? cutoffOverride
+      : currentPhase.cutoff;
 
     // Check if all judges have scored all participants
     const allComplete = currentParticipants.every(p => {
@@ -482,10 +485,11 @@ export default function SessionBoard() {
     // Mark current phase complete, add new phase
     const nextPhases = [...phases];
     const rankedCurrentParticipants = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
-    const qualifiedParticipants = rankedCurrentParticipants.slice(0, currentPhase.cutoff || rankedCurrentParticipants.length);
+    const qualifiedParticipants = rankedCurrentParticipants.slice(0, effectiveCutoff || rankedCurrentParticipants.length);
 
     nextPhases[currentPhaseIndex] = {
       ...nextPhases[currentPhaseIndex],
+      cutoff: effectiveCutoff || null,
       status: 'completed',
       participantIds: currentParticipants.map(participant => participant.id)
     };
@@ -505,11 +509,14 @@ export default function SessionBoard() {
     setForceAttempted(false);
   };
 
-  const revealWinner = async () => {
+  const revealWinner = async (cutoffOverride = null) => {
     const phaseKey = `phase_${currentPhaseIndex}`;
     let phaseScores = scores[phaseKey] || {};
     const currentParticipants = getPhaseParticipants(currentPhaseIndex);
     const judges = session.judges || [];
+    const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
+      ? cutoffOverride
+      : currentPhase.cutoff;
 
     const allComplete = currentParticipants.every(participant => {
       const participantScores = phaseScores[participant.id] || {};
@@ -565,6 +572,7 @@ export default function SessionBoard() {
 
     nextPhases[currentPhaseIndex] = {
       ...nextPhases[currentPhaseIndex],
+      cutoff: effectiveCutoff || null,
       status: 'completed',
       participantIds: currentParticipants.map(participant => participant.id)
     };
@@ -579,15 +587,40 @@ export default function SessionBoard() {
     setForceAttempted(false);
   };
 
-  const handlePhaseAction = () => {
-    setUndoAttempted(false);
+  const requestCutoffBeforeAdvance = async () => {
+    const existingCutoff = Number.parseInt(currentPhase.cutoff, 10);
+    if (Number.isFinite(existingCutoff) && existingCutoff > 0) return existingCutoff;
 
-    if (currentPhase.cutoff === 1) {
-      revealWinner().catch(() => {});
+    const maxAllowed = currentParticipants.length;
+    if (!maxAllowed) return null;
+
+    let suggestedValue = String(maxAllowed);
+    while (true) {
+      const rawValue = window.prompt(t.board.missingCutoffPrompt(maxAllowed), suggestedValue);
+      if (rawValue === null) return null;
+
+      const parsed = Number.parseInt(rawValue, 10);
+      if (Number.isFinite(parsed) && parsed >= 1 && parsed <= maxAllowed) {
+        await updatePhaseCutoff(String(parsed));
+        return parsed;
+      }
+
+      window.alert(t.board.invalidCutoffPrompt(maxAllowed));
+      suggestedValue = rawValue;
+    }
+  };
+
+  const handlePhaseAction = async () => {
+    setUndoAttempted(false);
+    const selectedCutoff = await requestCutoffBeforeAdvance();
+    if (!selectedCutoff) return;
+
+    if (selectedCutoff === 1) {
+      revealWinner(selectedCutoff).catch(() => {});
       return;
     }
 
-    advancePhase().catch(() => {});
+    advancePhase(selectedCutoff).catch(() => {});
   };
 
   const copyCode = (e) => {
@@ -622,6 +655,7 @@ export default function SessionBoard() {
   const allParticipants = session.participants || [];
   const judges = session.judges || [];
   const pendingJudgeRequests = session.pendingJudges || [];
+  const hasPendingJudgeRequests = isHost && pendingJudgeRequests.length > 0;
   const isJudgeApproved = isHost || judgeListIncludes(judges, judgeName);
   const isJudgePendingApproval = !isHost && judgeListIncludes(pendingJudgeRequests, judgeName);
   const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
@@ -739,6 +773,8 @@ export default function SessionBoard() {
   const pendingVotesCount = Math.max(judges.length - votedJudges, 0);
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
+  const shouldHideCutInsightsForJudge = !isHost && !isSessionComplete && currentPhase.status === 'active';
+  const shouldShowCutPreview = !shouldHideCutInsightsForJudge;
   const canUndoPhase = isHost && (currentPhaseIndex > 0 || isSessionComplete);
   const currentPhaseHasSavedScores = phaseHasSavedScores(currentPhaseIndex);
 
@@ -959,6 +995,35 @@ export default function SessionBoard() {
         </div>
       </header>
 
+      {hasPendingJudgeRequests && (
+        <div className="px-4 pt-3">
+          <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200">{t.board.pendingRequestsNotice(pendingJudgeRequests.length)}</p>
+                <p className="text-sm text-app-text mt-1">{t.board.pendingRequestPrompt(pendingJudgeRequests[0])}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => approveJudge(pendingJudgeRequests[0]).catch(() => {})}
+                  className="rounded-lg border border-emerald-300/30 bg-emerald-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/25 transition-colors"
+                >
+                  {t.board.approveFromNotice}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rejectJudge(pendingJudgeRequests[0]).catch(() => {})}
+                  className="rounded-lg border border-red-300/30 bg-red-500/15 px-3 py-2 text-xs font-bold uppercase tracking-widest text-red-200 hover:bg-red-500/25 transition-colors"
+                >
+                  {t.board.rejectFromNotice}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MAIN CONTENT AREA with GAP */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-4 p-4 pb-20 lg:pb-4 overflow-hidden">
         
@@ -1000,15 +1065,19 @@ export default function SessionBoard() {
                 <h2 className="text-xl font-bold text-app-text">{currentPhase.name}</h2>
               )}
               {isHost && (
-                <div className="flex items-center gap-2 bg-app-border/30 border border-app-border rounded-lg px-2.5 py-1.5 shrink-0">
-                  <span className="text-[10px] text-app-muted/70 uppercase tracking-widest">{t.board.classifyLabel}</span>
+                <div className="shrink-0 rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-app-muted/90 uppercase tracking-widest font-bold">{t.board.classifyLabel}</span>
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-app-accent" />
+                  </div>
                   <input
                     type="number" min="1" max={currentParticipants.length || 99}
                     value={currentPhase.cutoff || ''}
                     onChange={e => updatePhaseCutoff(e.target.value)}
                     placeholder="—"
-                    className="bg-transparent text-base text-app-text font-mono font-bold text-center focus:outline-none w-10"
+                    className="mt-1 bg-transparent text-xl text-app-text font-mono font-black text-center focus:outline-none w-16"
                   />
+                  <p className="mt-1 text-[10px] text-app-muted/80 uppercase tracking-wider">{t.board.classifyHint}</p>
                 </div>
               )}
             </div>
@@ -1213,13 +1282,13 @@ export default function SessionBoard() {
                       {tableParticipants.map((p, idx) => {
                         const isAbsent = Boolean(p.isAbsent);
                         const hasScore = p.myScore !== undefined && p.myScore !== null;
-                        const isQualified = qualifiedIds.has(p.id);
+                        const isQualified = shouldShowCutPreview ? qualifiedIds.has(p.id) : true;
                         const sliderValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '0');
                         const displayScore = Number.parseFloat(sliderValue);
                         const showScoreValue = Number.isFinite(displayScore);
 
                         return (
-                          <tr key={p.id} className={`transition-all duration-300 ${!isQualified ? 'opacity-40 grayscale-[50%]' : 'hover:bg-app-border/30'}`} style={!isQualified ? { backgroundColor: 'var(--color-app-danger-soft)' } : undefined}>
+                          <tr key={p.id} className={`transition-all duration-300 ${shouldShowCutPreview && !isQualified ? 'opacity-40 grayscale-[50%]' : 'hover:bg-app-border/30'}`} style={shouldShowCutPreview && !isQualified ? { backgroundColor: 'var(--color-app-danger-soft)' } : undefined}>
                             <td className="py-2 md:py-4 pl-2 md:pl-4 pr-1 md:pr-2 text-center">
                               <span className={`text-[10px] md:text-xs font-mono font-bold ${idx === 0 ? 'text-app-accent' : isQualified ? 'text-app-text' : 'text-app-muted/50'}`}>{idx + 1}</span>
                             </td>
@@ -1365,10 +1434,19 @@ export default function SessionBoard() {
           </div>
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
-              {globalResults.length === 0 && (
+              {shouldHideCutInsightsForJudge && (
+                <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-8 text-center">
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-app-border/60 bg-app-border/20 text-app-muted">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <p className="text-sm font-semibold text-app-text">{t.board.publicResultsPending}</p>
+                  <p className="text-xs text-app-muted/80 mt-2">{t.board.publicJudgesScoring}</p>
+                </div>
+              )}
+              {!shouldHideCutInsightsForJudge && globalResults.length === 0 && (
                 <p className="text-sm text-app-muted/50 text-center py-10">{t.board.noGlobalParticipants}</p>
               )}
-              {globalResults.map((p, idx) => {
+              {!shouldHideCutInsightsForJudge && globalResults.map((p, idx) => {
                 const eliminated = p.eliminated;
                 const isWinner = session.winnerId === p.id;
                 return (

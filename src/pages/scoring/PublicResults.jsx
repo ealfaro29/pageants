@@ -274,19 +274,27 @@ export default function PublicResults() {
 
   useEffect(() => {
     if (!session) return;
+    const isValidPhaseView = selectedView >= 0 && visiblePhaseIndexes.includes(selectedView);
+    const isValidOverallView = isTotalScoring && selectedView === OVERALL_RESULTS_VIEW;
+    const isValidWinnerView = session.status === 'completed' && winner && selectedView === WINNER_VIEW;
+
+    if (isValidPhaseView || isValidOverallView || isValidWinnerView) return;
+
     if (session.status === 'completed' && winner) {
       setSelectedView(WINNER_VIEW);
       return;
     }
+
     if (isTotalScoring) {
       setSelectedView(OVERALL_RESULTS_VIEW);
       return;
     }
+
     const latestCompletedPhase = visiblePhaseIndexes.length > 0
       ? visiblePhaseIndexes[visiblePhaseIndexes.length - 1]
       : OVERALL_RESULTS_VIEW;
     setSelectedView(latestCompletedPhase);
-  }, [session, winner, isTotalScoring, visiblePhaseIndexes]);
+  }, [session, winner, isTotalScoring, visiblePhaseIndexes, selectedView]);
 
   if (loading) {
     return (
