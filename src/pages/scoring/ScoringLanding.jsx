@@ -646,7 +646,7 @@ export default function ScoringLanding() {
 
       {showWelcomeSplash && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md">
-          <div className="relative w-full max-w-3xl max-h-[92vh] overflow-auto rounded-[2rem] border border-app-border/80 bg-app-card/60 backdrop-blur-xl shadow-[0_40px_80px_rgba(0,0,0,0.55)]">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-app-border/80 bg-app-card/60 backdrop-blur-xl shadow-[0_40px_80px_rgba(0,0,0,0.55)]">
             <button
               type="button"
               onClick={() => setShowWelcomeSplash(false)}
