@@ -1673,14 +1673,32 @@ export default function SessionBoard() {
                       <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         onKeyDown={e => {
                           const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
-                          if (isEnter && searchResults.length === 1) {
-                            e.preventDefault();
+                          if (!isEnter) return;
+
+                          e.preventDefault();
+                          const queryValue = searchQuery.trim();
+
+                          if (searchResults.length === 1) {
                             const selected = searchResults[0];
                             setSearchQuery('');
                             setSearchResults([]);
                             e.currentTarget.blur();
                             addParticipant(selected).catch(() => {
                               setSearchQuery(selected?.name || '');
+                            });
+                            return;
+                          }
+
+                          if (queryValue.length > 1) {
+                            const manualCandidate = session.type === 'Global'
+                              ? { name: queryValue, id: queryValue.replace(/\s+/g, '').toUpperCase(), flag: '🏳️' }
+                              : { name: queryValue, id: queryValue.replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry?.flag || '' };
+
+                            setSearchQuery('');
+                            setSearchResults([]);
+                            e.currentTarget.blur();
+                            addParticipant(manualCandidate).catch(() => {
+                              setSearchQuery(queryValue);
                             });
                           }
                         }}
