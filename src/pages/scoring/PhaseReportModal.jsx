@@ -13,6 +13,10 @@ function getVotingJudges(sessionData) {
   return judges.filter(judge => String(judge || '').trim().toLowerCase() !== hostName);
 }
 
+function isPhaseResultPublished(phase) {
+  return Boolean(phase?.resultsPublished) || phase?.status === 'completed';
+}
+
 export default function PhaseReportModal({
   isOpen,
   onClose,
@@ -38,16 +42,32 @@ export default function PhaseReportModal({
   const WINNER_VIEW = -1;
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    const publishedIndexes = phases
+      .map((phase, index) => (isPhaseResultPublished(phase) ? index : null))
+      .filter(index => index !== null);
+    if (isPhaseResultPublished(phases[currentPhaseIndex])) {
       setSelectedPhaseIdx(currentPhaseIndex);
+      return;
     }
-  }, [currentPhaseIndex, isOpen]);
+
+    if (isTotalScoring && publishedIndexes.length > 0) {
+      setSelectedPhaseIdx(OVERALL_RESULTS_VIEW);
+      return;
+    }
+
+    setSelectedPhaseIdx(publishedIndexes[publishedIndexes.length - 1] ?? currentPhaseIndex);
+  }, [currentPhaseIndex, isOpen, isTotalScoring, phases]);
 
   if (!isOpen) return null;
 
   const judges = getVotingJudges(session);
   const allParticipants = session?.participants || [];
-  const visiblePhases = phases.slice(0, currentPhaseIndex + 1);
+  const visiblePhaseEntries = phases
+    .map((phase, index) => ({ phase, index }))
+    .filter(({ phase }) => isPhaseResultPublished(phase));
+  const visiblePhases = visiblePhaseEntries.map(({ phase }) => phase);
   const isOverallView = isTotalScoring && selectedPhaseIdx === OVERALL_RESULTS_VIEW;
   const isWinnerView = selectedPhaseIdx === WINNER_VIEW;
   const selectedPhase = selectedPhaseIdx >= 0 ? phases[selectedPhaseIdx] : null;
@@ -55,11 +75,11 @@ export default function PhaseReportModal({
   const phaseKey = selectedPhaseIdx >= 0 ? `phase_${selectedPhaseIdx}` : null;
   const phaseScores = phaseKey ? (scores[phaseKey] || {}) : {};
   const rankedParticipants = rankParticipantsByPhaseScores(participants, phaseScores);
-  const totalPossibleVotes = visiblePhases.length * judges.length;
+  const totalPossibleVotes = visiblePhaseEntries.length * judges.length;
   const overallResults = allParticipants
     .map(participant => {
-      const phaseBreakdown = visiblePhases.map((phase, idx) => {
-        const phaseParticipants = getPhaseParticipants(idx);
+      const phaseBreakdown = visiblePhaseEntries.map(({ phase, index }) => {
+        const phaseParticipants = getPhaseParticipants(index);
         const isInPhase = phaseParticipants.some(currentParticipant => currentParticipant.id === participant.id);
         if (!isInPhase) {
           return {
@@ -71,7 +91,7 @@ export default function PhaseReportModal({
           };
         }
 
-        const participantScores = scores[`phase_${idx}`]?.[participant.id] || {};
+        const participantScores = scores[`phase_${index}`]?.[participant.id] || {};
         const values = Object.values(participantScores).filter(value => value !== null && value !== undefined);
         const total = values.reduce((sum, value) => sum + value, 0);
 
@@ -247,12 +267,12 @@ export default function PhaseReportModal({
 
         {/* Tabs */}
         <div className="flex overflow-x-auto border-b border-app-border bg-app-card px-5 py-4 scrollbar-none">
-          {phases.slice(0, currentPhaseIndex + 1).map((ph, idx) => (
+          {visiblePhaseEntries.map(({ phase: ph, index }) => (
             <button
-              key={idx}
-              onClick={() => setSelectedPhaseIdx(idx)}
+              key={index}
+              onClick={() => setSelectedPhaseIdx(index)}
               className={`px-5 py-4 text-sm font-medium rounded-lg whitespace-nowrap transition-colors mr-2 ${
-                selectedPhaseIdx === idx
+                selectedPhaseIdx === index
                   ? 'scoring-badge-active'
                   : 'text-app-muted/70 hover:text-app-text hover:bg-app-border/30'
               }`}
@@ -397,8 +417,8 @@ export default function PhaseReportModal({
                     <tr className="bg-app-border/30 border-b border-app-border text-xs uppercase tracking-widest text-app-muted/70">
                       <th className="px-5 py-4 text-center w-12 font-semibold">#</th>
                       <th className="px-5 py-4 font-semibold">{t.board.contestant}</th>
-                      {visiblePhases.map((phase, idx) => (
-                        <th key={`${phase.name}-${idx}`} className="px-5 py-4 text-center font-semibold whitespace-nowrap">
+                      {visiblePhaseEntries.map(({ phase, index }) => (
+                        <th key={`${phase.name}-${index}`} className="px-5 py-4 text-center font-semibold whitespace-nowrap">
                           {phase.name}
                         </th>
                       ))}

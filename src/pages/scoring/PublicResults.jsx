@@ -28,6 +28,11 @@ function getDefaultPhase(language) {
 
 function normalizePhase(phase, index, currentPhaseIndex, language) {
   const cutoff = Number.parseInt(phase?.cutoff, 10);
+  const normalizedStatus = ['completed', 'active', 'pending'].includes(phase?.status)
+    ? phase.status
+    : index === currentPhaseIndex
+      ? 'active'
+      : 'completed';
   const participantIds = Array.isArray(phase?.participantIds)
     ? phase.participantIds.filter(id => typeof id === 'string' && id.trim())
     : null;
@@ -36,16 +41,13 @@ function normalizePhase(phase, index, currentPhaseIndex, language) {
     : null;
 
   return {
+    ...(phase && typeof phase === 'object' ? phase : {}),
     name: typeof phase?.name === 'string' && phase.name.trim() ? phase.name.trim() : getDefaultPhaseName(index, language),
     cutoff: Number.isFinite(cutoff) && cutoff > 0 ? cutoff : null,
     participantIds: participantIds?.length ? participantIds : null,
     absentParticipantIds: absentParticipantIds?.length ? absentParticipantIds : null,
-    status:
-      phase?.status === 'completed' || phase?.status === 'active'
-        ? phase.status
-        : index === currentPhaseIndex
-          ? 'active'
-          : 'completed'
+    status: normalizedStatus,
+    resultsPublished: Boolean(phase?.resultsPublished) || normalizedStatus === 'completed'
   };
 }
 
@@ -85,6 +87,10 @@ function rankParticipantsByPhaseScores(participants, phaseScores) {
       return { ...participant, avg, voteCount: values.length };
     })
     .sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name));
+}
+
+function isPhaseResultPublished(phase) {
+  return Boolean(phase?.resultsPublished) || phase?.status === 'completed';
 }
 
 function getVotingJudges(sessionData) {
@@ -174,7 +180,7 @@ export default function PublicResults() {
     const activePhase = normalizedPhases[safePhaseIndex] || getDefaultPhase(currentLanguage);
     const participantMap = new Map(allParticipants.map(participant => [participant.id, participant]));
     const completedPhaseIndexes = normalizedPhases
-      .map((phase, idx) => (phase.status === 'completed' ? idx : null))
+      .map((phase, idx) => (isPhaseResultPublished(phase) ? idx : null))
       .filter(idx => idx !== null);
 
     const getPhaseParticipants = (phaseIdx) => {

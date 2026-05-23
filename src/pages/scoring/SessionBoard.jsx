@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
-import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
   getCountryDisplayName,
@@ -39,6 +39,11 @@ function getDefaultPhase(language) {
 
 function normalizePhase(phase, index, currentPhaseIndex, language) {
   const cutoff = Number.parseInt(phase?.cutoff, 10);
+  const normalizedStatus = ['completed', 'active', 'pending'].includes(phase?.status)
+    ? phase.status
+    : index === currentPhaseIndex
+      ? 'active'
+      : 'completed';
   const participantIds = Array.isArray(phase?.participantIds)
     ? phase.participantIds.filter(id => typeof id === 'string' && id.trim())
     : null;
@@ -47,16 +52,13 @@ function normalizePhase(phase, index, currentPhaseIndex, language) {
     : null;
 
   return {
+    ...(phase && typeof phase === 'object' ? phase : {}),
     name: normalizeUpperLabel(typeof phase?.name === 'string' && phase.name.trim() ? phase.name : getDefaultPhaseName(index, language)),
     cutoff: Number.isFinite(cutoff) && cutoff > 0 ? cutoff : null,
     participantIds: participantIds?.length ? participantIds : null,
     absentParticipantIds: absentParticipantIds?.length ? absentParticipantIds : null,
-    status:
-      phase?.status === 'completed' || phase?.status === 'active'
-        ? phase.status
-        : index === currentPhaseIndex
-          ? 'active'
-          : 'completed'
+    status: normalizedStatus,
+    resultsPublished: Boolean(phase?.resultsPublished) || normalizedStatus === 'completed'
   };
 }
 
@@ -147,6 +149,10 @@ function getParticipantScoreStatsByPhases(participantId, phaseIndexes, scoreMap)
     votes,
     average: votes > 0 ? total / votes : 0
   };
+}
+
+function isPhaseResultPublished(phase) {
+  return Boolean(phase?.resultsPublished) || phase?.status === 'completed';
 }
 
 function normalizeParticipantName(value) {
@@ -379,30 +385,6 @@ export default function SessionBoard() {
     }).catch(() => {});
   }, [sessionId, session, judgeName]);
 
-  useEffect(() => {
-    if (!sessionId || !session || !judgeName) return;
-
-    const hostName = session.host;
-    const currentControlHost = session.controlHost || hostName;
-    const isOriginalHostNow = normalizeJudgeIdentity(hostName) === normalizeJudgeIdentity(judgeName);
-    const hasTransferredControlsNow = normalizeJudgeIdentity(currentControlHost) !== normalizeJudgeIdentity(hostName);
-
-    if (!isOriginalHostNow || !hasTransferredControlsNow) {
-      hostAutoReclaimAttemptedRef.current = false;
-      return;
-    }
-    if (hostAutoReclaimAttemptedRef.current) return;
-
-    hostAutoReclaimAttemptedRef.current = true;
-    updateDoc(doc(db, "sessions", session.id), {
-      controlHost: hostName,
-      controlHostAssignedAt: Date.now(),
-      hostLastSeenAt: Date.now()
-    }).catch(() => {
-      hostAutoReclaimAttemptedRef.current = false;
-    });
-  }, [sessionId, session, judgeName]);
-
   // --- Actions ---
   const canCurrentJudgeVote = () => {
     if (!isJudgeApproved) return false;
@@ -420,10 +402,21 @@ export default function SessionBoard() {
 
     setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: false }));
     const submissionKey = getJudgeSubmissionKey(judgeName);
-    updateDoc(doc(db, "sessions", session.id), {
-      [`phases.${currentPhaseIndex}.submittedJudges`]: arrayRemove(judgeName),
-      [`phases.${currentPhaseIndex}.submittedScoreSheets.${submissionKey}`]: deleteField()
-    }).catch(() => {});
+    const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => {
+      const nextSubmittedJudges = (phase.submittedJudges || []).filter(
+        judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(judgeName)
+      );
+      const nextScoreSheets = { ...(phase.submittedScoreSheets || {}) };
+      delete nextScoreSheets[submissionKey];
+
+      return {
+        ...phase,
+        submittedJudges: nextSubmittedJudges,
+        submittedScoreSheets: Object.keys(nextScoreSheets).length ? nextScoreSheets : {}
+      };
+    });
+
+    updateDoc(doc(db, "sessions", session.id), { phases: nextPhases }).catch(() => {});
   };
 
   const queueScoreSave = (participantId, value) => {
@@ -437,6 +430,25 @@ export default function SessionBoard() {
     setScoreDrafts(prev => ({ ...prev, [participantId]: nextValue }));
     setSubmitScoreError('');
     markCurrentPhaseSubmissionDirty();
+  };
+
+  const mergeCurrentJudgeDraftScores = (phaseScores, phaseParticipants, votingJudges) => {
+    if (!judgeListIncludes(votingJudges, judgeName)) return phaseScores;
+
+    let changed = false;
+    const nextPhaseScores = { ...phaseScores };
+    phaseParticipants.forEach(participant => {
+      if (!(participant.id in scoreDrafts)) return;
+
+      const parsed = Number.parseFloat(scoreDrafts[participant.id]);
+      if (!Number.isFinite(parsed)) return;
+
+      nextPhaseScores[participant.id] = { ...(nextPhaseScores[participant.id] || {}) };
+      nextPhaseScores[participant.id][judgeName] = Math.min(Math.max(parsed, 0), 10);
+      changed = true;
+    });
+
+    return changed ? nextPhaseScores : phaseScores;
   };
 
   const submitCurrentJudgeScores = async () => {
@@ -468,10 +480,23 @@ export default function SessionBoard() {
       });
 
       const submissionKey = getJudgeSubmissionKey(judgeName);
-      await updateDoc(doc(db, "sessions", session.id), {
-        [`phases.${currentPhaseIndex}.submittedScoreSheets.${submissionKey}`]: judgeSubmissionPayload,
-        [`phases.${currentPhaseIndex}.submittedJudges`]: arrayUnion(judgeName)
+      const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => {
+        const submittedJudges = Array.isArray(phase.submittedJudges) ? phase.submittedJudges : [];
+        const nextSubmittedJudges = judgeListIncludes(submittedJudges, judgeName)
+          ? submittedJudges
+          : [...submittedJudges, judgeName];
+
+        return {
+          ...phase,
+          submittedJudges: nextSubmittedJudges,
+          submittedScoreSheets: {
+            ...(phase.submittedScoreSheets || {}),
+            [submissionKey]: judgeSubmissionPayload
+          }
+        };
       });
+
+      await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
 
       setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: true }));
     } catch {
@@ -577,6 +602,29 @@ export default function SessionBoard() {
     }
   };
 
+  const buildManualSearchCandidate = (rawName) => {
+    const name = normalizeUpperLabel(rawName);
+    if (!name) return null;
+
+    return {
+      name,
+      id: name.replace(/\s+/g, '').toUpperCase(),
+      flag: session?.type === 'Global' ? '🏳️' : (selectedParentCountry?.flag || '')
+    };
+  };
+
+  const addParticipantFromSearch = async (item, restoreValue = '') => {
+    if (!item) return;
+    setSearchQuery('');
+    setSearchResults([]);
+
+    try {
+      await addParticipant(item);
+    } catch {
+      setSearchQuery(restoreValue || item.name || '');
+    }
+  };
+
   const removeParticipant = async (id) => {
     await updateDoc(doc(db, "sessions", session.id), {
       participants: (session.participants || []).filter(p => p.id !== id)
@@ -587,18 +635,11 @@ export default function SessionBoard() {
     const normalizedName = normalizeUpperLabel(name);
     if (!normalizedName || normalizedName === currentPhase.name) return;
 
-    if (!Array.isArray(session?.phases)) {
-      const requestedPhaseIndex = Number.isInteger(session?.currentPhaseIndex) ? session.currentPhaseIndex : 0;
-      const migratedPhases = normalizePhases(session?.phases, requestedPhaseIndex, currentLanguage);
-      const nextPhases = [...migratedPhases];
-      nextPhases[currentPhaseIndex] = { ...nextPhases[currentPhaseIndex], name: normalizedName };
-      await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
-      return;
-    }
-
-    await updateDoc(doc(db, "sessions", session.id), {
-      [`phases.${currentPhaseIndex}.name`]: normalizedName
-    });
+    const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => ({
+      ...phase,
+      name: normalizedName
+    }));
+    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
   };
 
   const commitPhaseName = () => {
@@ -615,9 +656,11 @@ export default function SessionBoard() {
 
   const updatePhaseCutoff = async (value) => {
     const num = parseInt(value);
-    await updateDoc(doc(db, "sessions", session.id), {
-      [`phases.${currentPhaseIndex}.cutoff`]: isNaN(num) || num <= 0 ? null : num
-    });
+    const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => ({
+      ...phase,
+      cutoff: isNaN(num) || num <= 0 ? null : num
+    }));
+    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
   };
 
   const toggleParticipantAbsent = async (participantId) => {
@@ -630,9 +673,11 @@ export default function SessionBoard() {
       ? currentAbsentIds.filter(id => id !== participantId)
       : [...currentAbsentIds, participantId];
 
-    await updateDoc(doc(db, "sessions", session.id), {
-      [`phases.${currentPhaseIndex}.absentParticipantIds`]: nextAbsentIds.length ? nextAbsentIds : null
-    });
+    const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => ({
+      ...phase,
+      absentParticipantIds: nextAbsentIds.length ? nextAbsentIds : null
+    }));
+    await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
   };
 
   const renameSession = async (nextName) => {
@@ -694,6 +739,16 @@ export default function SessionBoard() {
     });
   };
 
+  const getNextPhasesWithUpdate = (phaseIndex, updater) => {
+    const nextPhases = [...phases];
+    while (nextPhases.length <= phaseIndex) {
+      nextPhases.push(getDefaultPhase(currentLanguage));
+    }
+
+    nextPhases[phaseIndex] = updater({ ...(nextPhases[phaseIndex] || getDefaultPhase(currentLanguage)) });
+    return nextPhases;
+  };
+
   const advancePhase = async (cutoffOverride = null) => {
     if (isAdvancingPhase) return;
     setIsAdvancingPhase(true);
@@ -719,6 +774,7 @@ export default function SessionBoard() {
         phaseScores[participant.id][judge] = Math.min(Math.max(parsed, 0), 10);
       });
     });
+    phaseScores = mergeCurrentJudgeDraftScores(phaseScores, currentParticipants, judges);
 
     const hasNonHostJudges = judges.some(j => normalizeJudgeIdentity(j) !== normalizeJudgeIdentity(session.host));
 
@@ -762,16 +818,21 @@ export default function SessionBoard() {
       ...nextPhases[currentPhaseIndex],
       cutoff: effectiveCutoff || null,
       status: 'completed',
+      resultsPublished: true,
       participantIds: currentParticipants.map(participant => participant.id)
     };
     const newPhaseIndex = currentPhaseIndex + 1;
-    nextPhases.push({
-      name: getDefaultPhaseName(newPhaseIndex, currentLanguage),
+    nextPhases[newPhaseIndex] = {
+      ...(nextPhases[newPhaseIndex] || {}),
+      name: nextPhases[newPhaseIndex]?.name || getDefaultPhaseName(newPhaseIndex, currentLanguage),
       cutoff: null,
       status: 'active',
+      resultsPublished: false,
+      submittedJudges: [],
+      submittedScoreSheets: {},
       absentParticipantIds: null,
       participantIds: qualifiedParticipants.map(participant => participant.id)
-    });
+    };
 
       await updateDoc(doc(db, "sessions", session.id), {
         phases: nextPhases,
@@ -808,6 +869,7 @@ export default function SessionBoard() {
         phaseScores[participant.id][judge] = Math.min(Math.max(parsed, 0), 10);
       });
     });
+    phaseScores = mergeCurrentJudgeDraftScores(phaseScores, currentParticipants, judges);
 
     const hasNonHostJudges = judges.some(j => normalizeJudgeIdentity(j) !== normalizeJudgeIdentity(session.host));
     const allComplete = !hasNonHostJudges || currentParticipants.every(participant => {
@@ -844,7 +906,7 @@ export default function SessionBoard() {
     const winnerCandidates = rankedCurrentParticipants.map(participant => {
       const cumulativeStats = getParticipantScoreStatsByPhases(
         participant.id,
-        Array.from({ length: currentPhaseIndex + 1 }, (_, idx) => idx),
+        [...completedPhaseIndexes.filter(idx => idx < currentPhaseIndex), currentPhaseIndex],
         scoreSnapshot
       );
       return {
@@ -867,6 +929,7 @@ export default function SessionBoard() {
       ...nextPhases[currentPhaseIndex],
       cutoff: effectiveCutoff || null,
       status: 'completed',
+      resultsPublished: true,
       participantIds: currentParticipants.map(participant => participant.id)
     };
 
@@ -1106,7 +1169,7 @@ export default function SessionBoard() {
   const showTransferredControlsNotice = isHost && hasTransferredControls;
   const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
   const completedPhaseIndexes = phases
-    .map((phase, idx) => (phase.status === 'completed' ? idx : null))
+    .map((phase, idx) => (isPhaseResultPublished(phase) ? idx : null))
     .filter(idx => idx !== null);
   const lastCompletedPhaseIndex = completedPhaseIndexes.length > 0
     ? completedPhaseIndexes[completedPhaseIndexes.length - 1]
@@ -1126,7 +1189,8 @@ export default function SessionBoard() {
       const reopenedPhases = [...phases];
       reopenedPhases[currentPhaseIndex] = {
         ...reopenedPhases[currentPhaseIndex],
-        status: 'active'
+        status: 'active',
+        resultsPublished: isPhaseResultPublished(reopenedPhases[currentPhaseIndex])
       };
 
       await updateDoc(doc(db, "sessions", session.id), {
@@ -1149,24 +1213,23 @@ export default function SessionBoard() {
     }
 
     const previousPhaseIndex = currentPhaseIndex - 1;
-    const rewoundPhases = phases.slice(0, currentPhaseIndex).map((phase, index) => (
-      index === previousPhaseIndex
-        ? { ...phase, status: 'active' }
-        : phase
-    ));
-    const discardedPhaseIndexes = Array.from(
-      { length: phases.length - currentPhaseIndex },
-      (_, offset) => currentPhaseIndex + offset
-    );
+    const rewoundPhases = phases.map((phase, index) => {
+      const published = isPhaseResultPublished(phase);
 
-    if (discardedPhaseIndexes.length > 0) {
-      const scoreDeletes = discardedPhaseIndexes.reduce((acc, phaseIdx) => {
-        acc[`phase_${phaseIdx}`] = deleteField();
-        return acc;
-      }, {});
+      if (index === previousPhaseIndex) {
+        return { ...phase, status: 'active', resultsPublished: published };
+      }
 
-      await setDoc(doc(db, "sessions", `${sessionId}_scores`), scoreDeletes, { merge: true });
-    }
+      if (phase.status === 'active') {
+        return { ...phase, status: published ? 'completed' : 'pending', resultsPublished: published };
+      }
+
+      if (index > previousPhaseIndex && !published) {
+        return { ...phase, status: 'pending', resultsPublished: false };
+      }
+
+      return { ...phase, resultsPublished: published };
+    });
 
     await updateDoc(doc(db, "sessions", session.id), {
       phases: rewoundPhases,
@@ -1195,7 +1258,7 @@ export default function SessionBoard() {
 
     const aggregateStats = getParticipantScoreStatsByPhases(
       participant.id,
-      Array.from({ length: currentPhaseIndex + 1 }, (_, idx) => idx),
+      completedPhaseIndexes,
       scores
     );
     const currentPhaseStats = getParticipantScoreStatsByPhases(participant.id, [currentPhaseIndex], scores);
@@ -1410,7 +1473,7 @@ export default function SessionBoard() {
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 gap-3 md:gap-4 p-3 md:p-4 pb-[calc(env(safe-area-inset-bottom,0px)+5rem)] lg:pb-4 overflow-hidden">
         
         {/* LEFT: TABLERO DE PUNTUACIÓN (CARD) - 60% */}
-        <div className={`lg:w-[60%] flex flex-col min-h-0 bg-app-card rounded-2xl shadow-xl border border-app-border overflow-hidden ${activeTab !== 'scoring' ? 'hidden lg:flex' : 'flex'} ${isSessionComplete ? 'bg-gradient-to-br from-app-card to-app-border/10' : ''}`}>
+        <div className={`lg:w-[66%] xl:w-[68%] flex flex-col min-h-0 bg-app-card rounded-2xl shadow-xl border border-app-border overflow-hidden ${activeTab !== 'scoring' ? 'hidden lg:flex' : 'flex'} ${isSessionComplete ? 'bg-gradient-to-br from-app-card to-app-border/10' : ''}`}>
           {/* Phase header */}
           <div className="p-2 md:p-4 border-b border-app-border/50 bg-app-card/50 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 overflow-x-auto pb-1 scrollbar-none">
@@ -1418,10 +1481,10 @@ export default function SessionBoard() {
               {phases.map((ph, i) => (
                 <div key={i} className={`text-xs px-2.5 py-1 rounded-md font-medium shrink-0 ${
                   i === currentPhaseIndex ? 'scoring-badge-active' :
-                  ph.status === 'completed' ? 'bg-app-border text-app-muted/70' : 'bg-app-border/30 text-app-muted/50'
+                  isPhaseResultPublished(ph) ? 'bg-app-border text-app-muted/70' : 'bg-app-border/30 text-app-muted/50'
                 }`}>
                   {ph.name}
-                  {ph.status === 'completed' && <span className="ml-1 text-app-muted/50">✓</span>}
+                  {isPhaseResultPublished(ph) && <span className="ml-1 text-app-muted/50">✓</span>}
                 </div>
               ))}
             </div>
@@ -1476,15 +1539,17 @@ export default function SessionBoard() {
               {session.type === 'Nacional' && !selectedParentCountry && (
                 <div className="relative mb-2" ref={searchRef}>
                   <div className="relative">
-                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && searchResults.length === 1) {
-                          e.preventDefault();
-                          setSelectedParentCountry(searchResults[0]);
-                          setSearchQuery('');
-                          setSearchResults([]);
-                        }
-                      }}
+                      <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                        onKeyDown={e => {
+                          const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+                          if (isEnter && searchResults.length === 1) {
+                            e.preventDefault();
+                            setSelectedParentCountry(searchResults[0]);
+                            setSearchQuery('');
+                            setSearchResults([]);
+                            e.currentTarget.blur();
+                          }
+                        }}
                       placeholder={t.board.addHostCountryFirst}
                       className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm" />
                     <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
@@ -1645,10 +1710,18 @@ export default function SessionBoard() {
                     <div className="relative">
                       <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && searchResults.length === 1) {
-                            e.preventDefault();
-                            addParticipant(searchResults[0]).catch(() => {});
-                          }
+                          const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+                          if (!isEnter) return;
+
+                          e.preventDefault();
+                          const queryValue = searchQuery.trim();
+                          const selected = searchResults.length === 1
+                            ? searchResults[0]
+                            : buildManualSearchCandidate(queryValue);
+
+                          if (!selected) return;
+                          e.currentTarget.blur();
+                          addParticipantFromSearch(selected, queryValue).catch(() => {});
                         }}
                         disabled={session.type === 'Nacional' && loadingCities}
                         placeholder={session.type === 'Global' ? t.board.addCountryPlaceholder : loadingCities ? t.board.loadingCities : t.board.addCityPlaceholder}
@@ -1665,7 +1738,7 @@ export default function SessionBoard() {
                           className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl overflow-hidden z-30 max-h-48 overflow-y-auto p-1 custom-scrollbar"
                         >
                           {searchResults.map(c => (
-                            <button key={c.id} onClick={() => addParticipant(c)}
+                            <button key={c.id} onClick={() => addParticipantFromSearch(c, c.name).catch(() => {})}
                               className="scoring-popover-option w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm rounded-lg group">
                               {c.flag && <span className="text-lg group-hover:scale-110 transition-transform">{c.flag}</span>}
                               <span className="scoring-popover-secondary font-medium">{c.name}</span>
@@ -1681,7 +1754,7 @@ export default function SessionBoard() {
                           className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
                         >
                           <button
-                            onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: '🏳️' })}
+                            onClick={() => addParticipantFromSearch(buildManualSearchCandidate(searchQuery), searchQuery).catch(() => {})}
                             className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest"
                           >
                             {t.board.addManualEntry(searchQuery)}
@@ -1694,7 +1767,7 @@ export default function SessionBoard() {
                           animate={{ opacity: 1, y: 0 }}
                           className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
                         >
-                          <button onClick={() => addParticipant({ name: searchQuery.trim(), id: searchQuery.trim().replace(/\s+/g, '').toUpperCase(), flag: selectedParentCountry.flag })}
+                          <button onClick={() => addParticipantFromSearch(buildManualSearchCandidate(searchQuery), searchQuery).catch(() => {})}
                             className="scoring-btn-primary text-xs px-4 py-2 rounded-lg font-bold uppercase tracking-widest">
                             {t.board.addManualEntry(searchQuery)}
                           </button>
@@ -1861,21 +1934,17 @@ export default function SessionBoard() {
               </div>
 
               {currentUserCanSubmitScores && (
-                <div className="px-3 pb-2 pt-3 md:px-4 md:pt-4 shrink-0 border-t border-app-border/60 bg-app-card/90">
-                  <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-app-muted/75">{t.board.submitScores}</p>
-                      <p
-                        className={`text-[10px] font-bold uppercase tracking-[0.16em] ${currentUserSubmittedPhase ? 'text-emerald-300' : 'text-amber-300'}`}
-                      >
-                        {currentUserSubmittedPhase ? t.board.submitScoresStatusSubmitted : t.board.submitScoresStatusDraft}
-                      </p>
-                    </div>
+                <div className="px-3 py-2 shrink-0 border-t border-app-border/60 bg-app-card/90">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted/75">{t.board.submitScores}</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${currentUserSubmittedPhase ? 'text-emerald-300' : 'text-amber-300'}`}>
+                      {currentUserSubmittedPhase ? t.board.submitScoresStatusSubmitted : t.board.submitScoresStatusDraft}
+                    </p>
                     <button
                       type="button"
                       disabled={isSubmittingScores}
                       onClick={() => submitCurrentJudgeScores().catch(() => {})}
-                      className="mt-3 w-full scoring-btn-primary rounded-lg h-10 px-4 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
+                      className="w-full sm:w-auto sm:ml-auto scoring-btn-primary rounded-lg h-9 px-4 text-[10px] font-bold uppercase tracking-widest disabled:opacity-35"
                     >
                       {isSubmittingScores
                         ? t.board.submitScoresBusy
@@ -1885,39 +1954,37 @@ export default function SessionBoard() {
                     </button>
                   </div>
                   {submitScoreError && (
-                    <p className="mt-2 text-xs text-red-300 px-1">{submitScoreError}</p>
+                    <p className="mt-1 text-[11px] text-red-300">{submitScoreError}</p>
                   )}
                 </div>
               )}
 
               {/* Advance button (host only) */}
               {isHost && (currentParticipants.length > 0 || currentPhaseIndex > 0) && (
-                <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4 shrink-0 border-t border-app-border/60 bg-app-card/95">
-                  <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="text-xs text-app-muted/80 space-y-2 flex-1 min-w-[220px]">
-                        <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-app-muted/70">
-                          {t.board.judgesCompleted(votedJudges, judges.length)}
-                        </p>
-                        <div className="h-2 rounded-full bg-app-border/60 overflow-hidden">
-                          <div className="h-full rounded-full bg-app-accent transition-all" style={{ width: `${Math.round(judgeCompletionRatio * 100)}%` }} />
-                        </div>
-                        <span style={votedJudges === judges.length ? { color: 'var(--color-app-success)' } : undefined}>{t.board.judgesCompleted(votedJudges, judges.length)}</span>
+                <div className="px-3 py-2 shrink-0 border-t border-app-border/60 bg-app-card/95">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-xs text-app-muted/80 space-y-1 flex-1 min-w-[220px]">
+                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-app-muted/70">
+                        {t.board.judgesCompleted(votedJudges, judges.length)}
+                      </p>
+                      <div className="h-1.5 max-w-[320px] rounded-full bg-app-border/60 overflow-hidden">
+                        <div className="h-full rounded-full bg-app-accent transition-all" style={{ width: `${Math.round(judgeCompletionRatio * 100)}%` }} />
+                      </div>
                       {submitReminderAttempted && pendingSubmitJudges.length > 0 && (
-                        <p style={{ color: 'var(--color-app-warning)' }}>
+                        <p className="text-[11px]" style={{ color: 'var(--color-app-warning)' }}>
                           {t.board.pendingSubmitList(pendingSubmitJudges.join(', '))}
                         </p>
                       )}
                       {!isSessionComplete && currentPhaseIndex > 0 && undoAttempted && currentPhaseHasSavedScores && (
-                        <p style={{ color: 'var(--color-app-danger)' }}>{t.board.undoPhaseWarning}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--color-app-danger)' }}>{t.board.undoPhaseWarning}</p>
                       )}
-                      </div>
-                      <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end w-full sm:w-auto">
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
                       {canUndoPhase && !isSessionComplete && (
                         <button
                           type="button"
                           onClick={() => undoPhaseAdvance().catch(() => {})}
-                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 md:px-6 py-3 md:py-5 rounded-lg text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
+                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 py-2.5 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
                             undoAttempted && currentPhaseHasSavedScores
                               ? 'scoring-btn-danger animate-pulse'
                               : 'scoring-btn-secondary'
@@ -1931,7 +1998,7 @@ export default function SessionBoard() {
                         <button
                           onClick={handlePhaseAction}
                           disabled={isAdvancingPhase}
-                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 md:px-6 py-3 md:py-5 rounded-lg text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
+                          className={`w-full sm:w-auto justify-center flex items-center gap-2 px-4 py-2.5 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
                             forceAttempted
                               ? 'scoring-btn-danger animate-pulse'
                               : allJudgesComplete
@@ -1948,7 +2015,6 @@ export default function SessionBoard() {
                           )}
                         </button>
                       )}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1958,10 +2024,10 @@ export default function SessionBoard() {
         </div>
 
         {/* RIGHT PANEL: RESULTADOS GLOBALES (CARD) - 40% */}
-        <div className={`${activeTab !== 'results' ? 'hidden lg:flex' : 'flex'} lg:w-[40%] flex flex-col overflow-hidden shrink-0 bg-app-card rounded-2xl shadow-xl border border-app-border`}>
+        <div className={`${activeTab !== 'results' ? 'hidden lg:flex' : 'flex'} lg:w-[34%] xl:w-[32%] flex flex-col overflow-hidden shrink-0 bg-app-card rounded-2xl shadow-xl border border-app-border`}>
           <div className="px-6 py-5 border-b border-app-border/50 bg-app-card shrink-0">
             <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{t.board.lastSubmittedResultsTitle}</h3>
-            <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(p => p.status === 'completed').length)}</p>
+            <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(isPhaseResultPublished).length)}</p>
             <p className="text-[10px] text-app-muted/50 mt-1">
               {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
             </p>
