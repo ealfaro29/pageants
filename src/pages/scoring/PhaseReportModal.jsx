@@ -34,13 +34,19 @@ export default function PhaseReportModal({
   const [isExporting, setIsExporting] = useState(false);
   const [accentColor] = useState(getStoredScoringAccent());
   const reportRef = useRef(null);
+  const reportInitializedRef = useRef(false);
   const t = scoringCopy[language] || scoringCopy['es'];
   const isTotalScoring = isTotalScoringMode(session?.scoringMode);
   const OVERALL_RESULTS_VIEW = -2;
   const WINNER_VIEW = -1;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      reportInitializedRef.current = false;
+      return;
+    }
+    if (reportInitializedRef.current) return;
+    reportInitializedRef.current = true;
 
     const publishedIndexes = phases
       .map((phase, index) => (isPhaseResultPublished(phase) ? index : null))
