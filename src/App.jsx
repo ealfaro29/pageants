@@ -60,7 +60,7 @@ function Dashboard({ user }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [dataError, setDataError] = useState('');
-    const [showHidden, setShowHidden] = useState(false);
+    const [showHidden, setShowHidden] = useState(true);
     const { isFavorite, toggleFavorite } = useFavorites();
     const { groups, createGroup, deleteGroup } = useGroups();
 

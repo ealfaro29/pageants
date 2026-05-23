@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isCatalogAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'geraldmejiacarvajal21@hotmail.com',
+          'tbnalfaro@gmail.com'
+        ];
+    }
+
+    match /textures/{document=**} {
+      allow read, write: if isCatalogAdmin();
+    }
+
+    match /facebases/{document=**} {
+      allow read, write: if isCatalogAdmin();
+    }
+
+    match /avatar/{document=**} {
+      allow read, write: if isCatalogAdmin();
+    }
+
+    match /music/{document=**} {
+      allow read, write: if isCatalogAdmin();
+    }
+
+    // Scoring sessions are intentionally public because hosts and judges join by code
+    // without Firebase Auth. The app-level session code is the access boundary.
+    match /sessions/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
