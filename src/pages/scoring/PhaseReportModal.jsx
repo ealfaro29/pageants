@@ -188,6 +188,7 @@ export default function PhaseReportModal({
         cacheBust: true,
         backgroundColor,
         pixelRatio: 2,
+        skipFonts: true,
         width: exportWidth,
         height: exportHeight,
         style: {
