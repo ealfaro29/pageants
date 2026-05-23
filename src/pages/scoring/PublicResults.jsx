@@ -135,10 +135,7 @@ export default function PublicResults() {
   const {
     isTotalScoring,
     phases,
-    currentPhaseIndex,
-    currentPhase,
     winner,
-    winnerPhaseName,
     visiblePhaseIndexes,
     visiblePhases,
     hasCompletedPhases,
@@ -147,6 +144,7 @@ export default function PublicResults() {
     selectedPhaseParticipants,
     selectedPhaseScores,
     rankedParticipants,
+    winnerPhaseRankedParticipants,
     judges,
     qualifiedIds
   } = useMemo(() => {
@@ -154,10 +152,7 @@ export default function PublicResults() {
       return {
         isTotalScoring: true,
         phases: [],
-        currentPhaseIndex: 0,
-        currentPhase: null,
         winner: null,
-        winnerPhaseName: '',
         visiblePhaseIndexes: [],
         visiblePhases: [],
         hasCompletedPhases: false,
@@ -166,6 +161,7 @@ export default function PublicResults() {
         selectedPhaseParticipants: [],
         selectedPhaseScores: {},
         rankedParticipants: [],
+        winnerPhaseRankedParticipants: [],
         judges: [],
         qualifiedIds: new Set()
       };
@@ -265,14 +261,15 @@ export default function PublicResults() {
     const cutoffLimit = phase?.cutoff || ranked.length;
     const qualified = new Set(ranked.slice(0, cutoffLimit).map(participant => participant.id));
     const sessionWinner = session.winnerId ? participantMap.get(session.winnerId) : null;
+    const winnerPhaseIndex = Number.isInteger(session?.winnerPhaseIndex) ? session.winnerPhaseIndex : safePhaseIndex;
+    const winnerPhaseParticipants = getPhaseParticipants(winnerPhaseIndex);
+    const winnerPhaseScores = scores[`phase_${winnerPhaseIndex}`] || {};
+    const winnerPhaseRanked = rankParticipantsByPhaseScores(winnerPhaseParticipants, winnerPhaseScores);
 
     return {
       isTotalScoring: scoringModeIsTotal,
       phases: normalizedPhases,
-      currentPhaseIndex: safePhaseIndex,
-      currentPhase: activePhase,
       winner: sessionWinner,
-      winnerPhaseName: normalizedPhases[session.winnerPhaseIndex]?.name || activePhase.name,
       visiblePhaseIndexes: completedPhaseIndexes,
       visiblePhases: visible,
       hasCompletedPhases: completedPhaseIndexes.length > 0,
@@ -281,6 +278,7 @@ export default function PublicResults() {
       selectedPhaseParticipants: participants,
       selectedPhaseScores: phaseScores,
       rankedParticipants: ranked,
+      winnerPhaseRankedParticipants: winnerPhaseRanked,
       judges: judgesList,
       qualifiedIds: qualified
     };
@@ -330,14 +328,9 @@ export default function PublicResults() {
 
   const isWinnerView = selectedView === WINNER_VIEW;
   const isOverallView = isTotalScoring && selectedView === OVERALL_RESULTS_VIEW;
-  const winnerOverallResult = winner ? overallResults.find(participant => participant.id === winner.id) : null;
-  const showTrackTotalAndAverage = judges.length > 1;
-  const winnerPhaseIndex = Number.isInteger(session?.winnerPhaseIndex) ? session.winnerPhaseIndex : currentPhaseIndex;
-  const winnerPhaseScores = winner ? (scores[`phase_${winnerPhaseIndex}`]?.[winner.id] || {}) : {};
-  const winnerPhaseValues = Object.values(winnerPhaseScores).filter(value => value !== null && value !== undefined);
-  const winnerPhaseAverage = winnerPhaseValues.length > 0
-    ? winnerPhaseValues.reduce((sum, value) => sum + value, 0) / winnerPhaseValues.length
-    : 0;
+  const winnerRunnerUps = (isTotalScoring ? overallResults : winnerPhaseRankedParticipants)
+    .filter(participant => participant.id !== winner?.id)
+    .slice(0, 2);
   const publicJudgeColumns = judges.map((judgeName, idx) => ({
     judgeName,
     label: t.board.anonymousJudgeLabel ? t.board.anonymousJudgeLabel(idx) : `Judge ${idx + 1}`,
@@ -454,57 +447,42 @@ export default function PublicResults() {
               <div className="scoring-winner-stage relative flex min-h-[420px] md:min-h-[560px] items-center justify-center overflow-hidden rounded-2xl border border-amber-300/20 p-5 sm:p-8 text-center">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_80%_15%,rgba(251,191,36,0.18),transparent_20%),radial-gradient(circle_at_50%_85%,rgba(255,255,255,0.05),transparent_20%)] opacity-80" />
                 <div className="relative z-10 flex w-full max-w-3xl flex-col items-center">
-                  <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-amber-200/20 bg-amber-300/10 text-amber-200 shadow-[0_0_30px_rgba(251,191,36,0.2)]">
-                    <Crown className="h-10 w-10" />
+                  <div className="mb-7 flex h-24 w-24 items-center justify-center rounded-full border border-[#F6D365]/60 bg-gradient-to-br from-[#FFF2B8]/95 via-[#D4AF37]/75 to-[#8A5A13]/80 text-5xl shadow-[0_0_70px_rgba(212,175,55,0.42)]">
+                    <span aria-hidden="true">👑</span>
                   </div>
-                  <p className="text-xs uppercase tracking-[0.45em] text-amber-200/70">{t.board.winnerTitle}</p>
-                  <h2 className="mt-3 text-4xl font-black tracking-tight text-app-text md:text-5xl">{winner?.flag} {winner?.name || t.board.winnerPending}</h2>
-                  {isTotalScoring && winnerOverallResult && (
-                    <>
-                      <div className="mt-8 w-full max-w-3xl rounded-2xl border border-app-border/70 bg-app-card/55 px-5 py-5 text-left">
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3 text-center">{t.board.fullRatingsLabel || 'Full ratings'}</p>
-                        <div className="overflow-hidden rounded-xl border border-app-border/60">
-                          <table className="w-full border-collapse">
-                            <thead>
-                              <tr className="bg-app-border/30 text-[10px] uppercase tracking-[0.2em] text-app-muted/70 font-bold">
-                                <th className="px-3 py-2 text-left">Phase</th>
-                                {showTrackTotalAndAverage && <th className="px-3 py-2 text-right">{t.board.total}</th>}
-                                <th className="px-3 py-2 text-right">{t.board.average}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {winnerOverallResult.phaseBreakdown.map((phaseResult, idx) => (
-                                <tr key={`${phaseResult.phaseName}-${idx}`} className="border-t border-app-border/50 bg-app-card/35">
-                                  <td className="px-3 py-2.5 text-xs text-app-muted/90 uppercase tracking-wider">{phaseResult.phaseName || `Phase ${idx + 1}`}</td>
-                                  {showTrackTotalAndAverage && <td className="px-3 py-2.5 text-sm text-right font-mono font-semibold text-app-text">{phaseResult.participated ? phaseResult.total.toFixed(2) : '0.00'}</td>}
-                                  <td className="px-3 py-2.5 text-sm text-right font-mono font-bold text-app-text">{phaseResult.participated ? ((phaseResult.voteCount || 0) > 0 ? (phaseResult.total / phaseResult.voteCount).toFixed(2) : '0.00') : '0.00'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                      <div className="mt-6 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                          <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.overallAverage}</p>
-                          <p className="mt-2 text-3xl font-mono text-app-text">{winnerOverallResult.overallAverage.toFixed(2)}</p>
-                        </div>
-                        <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                          <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.overallTotal}</p>
-                          <p className="mt-2 text-3xl font-mono text-app-text">{winnerOverallResult.overallTotal.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {!isTotalScoring && (
-                    <div className="mt-6 grid w-full max-w-3xl grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerScorePhase || t.board.winnerScore}</p>
-                        <p className="mt-2 text-3xl font-mono text-app-text">{winnerPhaseAverage.toFixed(2)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-app-border bg-app-card/70 px-5 py-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-app-muted/70">{t.board.winnerPhaseLabel}</p>
-                        <p className="mt-2 text-base text-app-text">{winnerPhaseName || currentPhase?.name}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.45em] text-[#D4AF37]">{t.board.winnerTitle}</p>
+                  <div className="mt-5 flex flex-col items-center gap-3">
+                    <span className="text-5xl leading-none md:text-6xl">{winner?.flag || '👑'}</span>
+                    <h2 className="bg-gradient-to-r from-[#FFF4B0] via-[#D4AF37] to-[#B8860B] bg-clip-text text-4xl font-black tracking-tight text-transparent md:text-6xl drop-shadow-[0_0_18px_rgba(212,175,55,0.24)]">
+                      {winner?.name || t.board.winnerPending}
+                    </h2>
+                  </div>
+                  <p className="mt-5 text-base font-semibold tracking-wide text-app-muted md:text-lg">{t.board.winnerSubtitle}</p>
+                  {winnerRunnerUps.length > 0 && (
+                    <div className="mt-10 w-full max-w-3xl border-t border-app-accent/20 pt-6">
+                      <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.32em] text-app-muted/60">{t.board.runnerUpsTitle}</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {winnerRunnerUps.map((participant, idx) => (
+                          <div
+                            key={`public-winner-runner-up-${participant.id}`}
+                            className={
+                              idx === 0
+                                ? 'rounded-2xl border border-[#C0C0C0]/70 bg-gradient-to-br from-[#F8FAFC]/70 via-app-card/55 to-[#94A3B8]/25 px-4 py-3 text-left shadow-[0_16px_42px_rgba(148,163,184,0.18)]'
+                                : 'rounded-2xl border border-[#CD7F32]/70 bg-gradient-to-br from-[#FFE0B5]/55 via-app-card/55 to-[#8A4B1F]/25 px-4 py-3 text-left shadow-[0_16px_42px_rgba(205,127,50,0.16)]'
+                            }
+                          >
+                            <p className={idx === 0 ? 'text-[10px] font-black uppercase tracking-[0.26em] text-[#DCE3EC] drop-shadow' : 'text-[10px] font-black uppercase tracking-[0.26em] text-[#D58A50] drop-shadow'}>
+                              <span aria-hidden="true" className="mr-1 text-sm align-middle">{idx === 0 ? '🥈' : '🥉'}</span>
+                              {idx === 0 ? t.board.firstRunnerUpLabel : t.board.secondRunnerUpLabel}
+                            </p>
+                            <div className="mt-2 flex items-center gap-3">
+                              <span className="text-2xl leading-none">{participant.flag}</span>
+                              <p className="min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wide text-app-text">
+                                {participant.name}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
