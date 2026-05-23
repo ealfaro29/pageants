@@ -287,11 +287,7 @@ export default function SessionBoard() {
 
   // Click outside
   useEffect(() => {
-    const h = e => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setSearchResults(prev => (prev.length > 0 ? [] : prev));
-      }
-    };
+    const h = e => { if (searchRef.current && !searchRef.current.contains(e.target)) setSearchResults([]); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
@@ -1444,7 +1440,6 @@ export default function SessionBoard() {
                   type="text"
                   value={phaseNameDraft}
                   onChange={e => setPhaseNameDraft(e.target.value)}
-                  onPointerDown={event => event.stopPropagation()}
                   onBlur={commitPhaseName}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
@@ -1849,7 +1844,6 @@ export default function SessionBoard() {
                                 {currentPhaseIndex === 0 ? (
                                   <button
                                     type="button"
-                                    onPointerDown={event => event.stopPropagation()}
                                     onClick={() => removeParticipant(p.id).catch(() => {})}
                                     onPointerUp={event => removeParticipantFromTouch(event, p.id)}
                                     className="inline-flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-lg border border-app-danger/35 bg-app-danger/10 text-app-danger transition-colors hover:bg-app-danger/20 touch-manipulation"
