@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../../core/firebase-config.js';
-import { doc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
   getCountryDisplayName,
@@ -166,6 +166,9 @@ function normalizeParticipantName(value) {
 }
 
 const FLAG_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
+const HOST_PRESENCE_INTERVAL_MS = 3 * 60 * 1000;
+const HOST_INACTIVE_THRESHOLD_MS = 6 * 60 * 1000;
+const HOST_PRESENCE_CHECK_MS = 30 * 1000;
 
 export default function SessionBoard() {
   useEffect(() => {
@@ -196,6 +199,7 @@ export default function SessionBoard() {
   const [undoAttempted, setUndoAttempted] = useState(false);
   const [submitReminderAttempted, setSubmitReminderAttempted] = useState(false);
   const [scoreDrafts, setScoreDrafts] = useState({});
+  const [ownSubmittedScoreSheet, setOwnSubmittedScoreSheet] = useState({});
   const [isSubmittingScores, setIsSubmittingScores] = useState(false);
   const [submitScoreError, setSubmitScoreError] = useState('');
   const [submissionOverrides, setSubmissionOverrides] = useState({});
@@ -299,6 +303,7 @@ export default function SessionBoard() {
 
   useEffect(() => {
     setScoreDrafts({});
+    setOwnSubmittedScoreSheet({});
     setSubmissionOverrides({});
     setIsSubmittingScores(false);
     setSubmitScoreError('');
@@ -306,6 +311,30 @@ export default function SessionBoard() {
     setUndoAttempted(false);
     setSubmitReminderAttempted(false);
   }, [sessionId, judgeName, session?.currentPhaseIndex, session?.status]);
+
+  useEffect(() => {
+    setOwnSubmittedScoreSheet({});
+    if (!sessionId || !judgeName || !session) return;
+
+    let active = true;
+    const requestedPhaseIndex = Number.isInteger(session.currentPhaseIndex) ? session.currentPhaseIndex : 0;
+    const normalizedPhases = normalizePhases(session.phases, requestedPhaseIndex, currentLanguage);
+    const safePhaseIndex = Math.min(Math.max(requestedPhaseIndex, 0), normalizedPhases.length - 1);
+    const submissionKey = getJudgeSubmissionKey(judgeName);
+    const legacySheet = normalizedPhases[safePhaseIndex]?.submittedScoreSheets?.[submissionKey] || {};
+
+    getDoc(doc(db, "sessions", sessionId, "submissions", `${safePhaseIndex}_${submissionKey}`))
+      .then(snapshot => {
+        if (!active) return;
+        const nextSheet = snapshot.exists() ? (snapshot.data()?.scores || {}) : legacySheet;
+        setOwnSubmittedScoreSheet(nextSheet && typeof nextSheet === 'object' ? nextSheet : {});
+      })
+      .catch(() => {
+        if (active) setOwnSubmittedScoreSheet(legacySheet && typeof legacySheet === 'object' ? legacySheet : {});
+      });
+
+    return () => { active = false; };
+  }, [sessionId, judgeName, session?.currentPhaseIndex, currentLanguage]);
 
   useEffect(() => {
     judgeRegistrationAttemptedRef.current = false;
@@ -355,11 +384,25 @@ export default function SessionBoard() {
   useEffect(() => {
     if (!sessionId || !session?.host || session.host !== judgeName) return;
     const pingHostPresence = () => {
-      updateDoc(doc(db, "sessions", sessionId), { hostLastSeenAt: Date.now() }).catch(() => {});
+      if (document.visibilityState === 'hidden') return;
+      setDoc(doc(db, "sessions", sessionId, "presence", "host"), {
+        host: session.host,
+        lastSeenAt: Date.now()
+      }, { merge: true }).catch(() => {});
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pingHostPresence();
+      }
+    };
+
     pingHostPresence();
-    const timer = setInterval(pingHostPresence, 60000);
-    return () => clearInterval(timer);
+    const timer = setInterval(pingHostPresence, HOST_PRESENCE_INTERVAL_MS);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [sessionId, session?.host, judgeName]);
 
   useEffect(() => {
@@ -375,14 +418,39 @@ export default function SessionBoard() {
     if (!firstBackupJudge) return;
     if (normalizeJudgeIdentity(firstBackupJudge) !== normalizeJudgeIdentity(judgeName)) return;
 
-    const hostLastSeenAt = Number(session.hostLastSeenAt || 0);
-    const hostInactiveForMs = Date.now() - hostLastSeenAt;
-    if (hostInactiveForMs < 90000) return;
+    let latestHostSeenAt = Number(session.hostLastSeenAt || session.createdAt || Date.now());
+    let transferAttempted = false;
 
-    updateDoc(doc(db, "sessions", sessionId), {
-      controlHost: firstBackupJudge,
-      controlHostAssignedAt: Date.now()
-    }).catch(() => {});
+    const tryTransferHostControls = () => {
+      if (transferAttempted) return;
+      if (Date.now() - latestHostSeenAt < HOST_INACTIVE_THRESHOLD_MS) return;
+
+      transferAttempted = true;
+      updateDoc(doc(db, "sessions", sessionId), {
+        controlHost: firstBackupJudge,
+        controlHostAssignedAt: Date.now()
+      }).catch(() => {
+        transferAttempted = false;
+      });
+    };
+
+    const unsubscribePresence = onSnapshot(doc(db, "sessions", sessionId, "presence", "host"), snapshot => {
+      if (snapshot.exists()) {
+        const lastSeenAt = Number(snapshot.data()?.lastSeenAt);
+        if (Number.isFinite(lastSeenAt)) {
+          latestHostSeenAt = lastSeenAt;
+        }
+      }
+      tryTransferHostControls();
+    }, () => {});
+
+    const timer = setInterval(tryTransferHostControls, HOST_PRESENCE_CHECK_MS);
+    tryTransferHostControls();
+
+    return () => {
+      unsubscribePresence();
+      clearInterval(timer);
+    };
   }, [sessionId, session, judgeName]);
 
   // --- Actions ---
@@ -393,6 +461,35 @@ export default function SessionBoard() {
     return true;
   };
 
+  const getSubmissionDocRef = (phaseIndex, targetJudgeName = judgeName) => (
+    doc(db, "sessions", sessionId, "submissions", `${phaseIndex}_${getJudgeSubmissionKey(targetJudgeName)}`)
+  );
+
+  const loadSubmittedScoreSheets = async (phaseIndex, submittedJudges) => {
+    const phase = phases[phaseIndex] || {};
+    const legacySheets = phase.submittedScoreSheets && typeof phase.submittedScoreSheets === 'object'
+      ? { ...phase.submittedScoreSheets }
+      : {};
+
+    const nextSheets = { ...legacySheets };
+    await Promise.all((submittedJudges || []).map(async judge => {
+      const submissionKey = getJudgeSubmissionKey(judge);
+      if (nextSheets[submissionKey]) return;
+
+      try {
+        const snapshot = await getDoc(getSubmissionDocRef(phaseIndex, judge));
+        const scores = snapshot.exists() ? snapshot.data()?.scores : null;
+        if (scores && typeof scores === 'object') {
+          nextSheets[submissionKey] = scores;
+        }
+      } catch {
+        // Missing submission docs should not block host fallback/force behavior.
+      }
+    }));
+
+    return nextSheets;
+  };
+
   const markCurrentPhaseSubmissionDirty = () => {
     if (!canCurrentJudgeVote() || isSessionComplete) return;
     const currentPhaseKey = `phase_${currentPhaseIndex}`;
@@ -401,6 +498,8 @@ export default function SessionBoard() {
     if (!currentlySubmitted) return;
 
     setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: false }));
+    setOwnSubmittedScoreSheet({});
+    deleteDoc(getSubmissionDocRef(currentPhaseIndex)).catch(() => {});
     const submissionKey = getJudgeSubmissionKey(judgeName);
     const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => {
       const nextSubmittedJudges = (phase.submittedJudges || []).filter(
@@ -455,7 +554,7 @@ export default function SessionBoard() {
     if (!canCurrentJudgeVote() || isSessionComplete || currentParticipants.length === 0) return;
 
     const missingScores = currentParticipants.reduce((count, participant) => {
-      const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName];
+      const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName] ?? ownSubmittedScoreSheet[participant.id];
       const parsed = Number.parseFloat(raw);
       const valid = Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
       return valid ? count : count + 1;
@@ -473,13 +572,12 @@ export default function SessionBoard() {
     try {
       const judgeSubmissionPayload = {};
       currentParticipants.forEach(participant => {
-        const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName];
+        const raw = scoreDrafts[participant.id] ?? phaseScores[participant.id]?.[judgeName] ?? ownSubmittedScoreSheet[participant.id];
         const parsed = Number.parseFloat(raw);
         const clamped = Math.min(Math.max(parsed, 0), 10);
         judgeSubmissionPayload[participant.id] = clamped;
       });
 
-      const submissionKey = getJudgeSubmissionKey(judgeName);
       const nextPhases = getNextPhasesWithUpdate(currentPhaseIndex, phase => {
         const submittedJudges = Array.isArray(phase.submittedJudges) ? phase.submittedJudges : [];
         const nextSubmittedJudges = judgeListIncludes(submittedJudges, judgeName)
@@ -488,16 +586,19 @@ export default function SessionBoard() {
 
         return {
           ...phase,
-          submittedJudges: nextSubmittedJudges,
-          submittedScoreSheets: {
-            ...(phase.submittedScoreSheets || {}),
-            [submissionKey]: judgeSubmissionPayload
-          }
+          submittedJudges: nextSubmittedJudges
         };
       });
 
+      await setDoc(getSubmissionDocRef(currentPhaseIndex), {
+        phaseIndex: currentPhaseIndex,
+        judgeName,
+        scores: judgeSubmissionPayload,
+        submittedAt: Date.now()
+      }, { merge: true });
       await updateDoc(doc(db, "sessions", session.id), { phases: nextPhases });
 
+      setOwnSubmittedScoreSheet(judgeSubmissionPayload);
       setSubmissionOverrides(prev => ({ ...prev, [currentPhaseKey]: true }));
     } catch {
       setSubmitScoreError(t.board.submitScoresError);
@@ -732,10 +833,15 @@ export default function SessionBoard() {
 
   const reclaimHostControls = async () => {
     if (!session?.host || judgeName !== session.host) return;
+    const now = Date.now();
+    await setDoc(doc(db, "sessions", sessionId, "presence", "host"), {
+      host: session.host,
+      lastSeenAt: now
+    }, { merge: true });
     await updateDoc(doc(db, "sessions", session.id), {
       controlHost: session.host,
-      controlHostAssignedAt: Date.now(),
-      hostLastSeenAt: Date.now()
+      controlHostAssignedAt: now,
+      hostLastSeenAt: now
     });
   };
 
@@ -759,12 +865,11 @@ export default function SessionBoard() {
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
-    const submittedScoreSheets = currentPhase?.submittedScoreSheets && typeof currentPhase.submittedScoreSheets === 'object'
-      ? currentPhase.submittedScoreSheets
-      : {};
+    const submittedJudges = Array.isArray(currentPhase?.submittedJudges) ? currentPhase.submittedJudges : [];
+    const submittedScoreSheets = await loadSubmittedScoreSheets(currentPhaseIndex, submittedJudges);
 
     judges.forEach(judge => {
-      if (!judgeListIncludes(currentPhase?.submittedJudges, judge)) return;
+      if (!judgeListIncludes(submittedJudges, judge)) return;
       const sheet = submittedScoreSheets[getJudgeSubmissionKey(judge)];
       if (!sheet || typeof sheet !== 'object') return;
       currentParticipants.forEach(participant => {
@@ -854,12 +959,11 @@ export default function SessionBoard() {
     const effectiveCutoff = Number.isFinite(cutoffOverride) && cutoffOverride > 0
       ? cutoffOverride
       : currentPhase.cutoff;
-    const submittedScoreSheets = currentPhase?.submittedScoreSheets && typeof currentPhase.submittedScoreSheets === 'object'
-      ? currentPhase.submittedScoreSheets
-      : {};
+    const submittedJudges = Array.isArray(currentPhase?.submittedJudges) ? currentPhase.submittedJudges : [];
+    const submittedScoreSheets = await loadSubmittedScoreSheets(currentPhaseIndex, submittedJudges);
 
     judges.forEach(judge => {
-      if (!judgeListIncludes(currentPhase?.submittedJudges, judge)) return;
+      if (!judgeListIncludes(submittedJudges, judge)) return;
       const sheet = submittedScoreSheets[getJudgeSubmissionKey(judge)];
       if (!sheet || typeof sheet !== 'object') return;
       currentParticipants.forEach(participant => {
@@ -1117,7 +1221,9 @@ export default function SessionBoard() {
   };
 
   // Score + sort participants for current phase
-  const currentJudgeSubmissionSheet = currentPhaseSubmissionSheets[getJudgeSubmissionKey(judgeName)] || {};
+  const currentJudgeSubmissionSheet = Object.keys(ownSubmittedScoreSheet).length > 0
+    ? ownSubmittedScoreSheet
+    : (currentPhaseSubmissionSheets[getJudgeSubmissionKey(judgeName)] || {});
   const scoredParticipants = currentParticipants.map(p => {
     const pScores = phaseScores[p.id] || {};
     const vals = Object.values(pScores).filter(v => v !== null && v !== undefined);
@@ -1144,13 +1250,7 @@ export default function SessionBoard() {
   // Check completion for advance button
   const hasNonHostJudges = judges.some(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(session.host));
   const judgeHasSubmittedPhase = (judge) => {
-    if (!judgeListIncludes(phaseSubmittedJudges, judge)) return false;
-    const submissionSheet = currentPhaseSubmissionSheets[getJudgeSubmissionKey(judge)];
-    if (!submissionSheet || typeof submissionSheet !== 'object') return false;
-    return currentParticipants.every(participant => {
-      const parsed = Number.parseFloat(submissionSheet[participant.id]);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 10;
-    });
+    return judgeListIncludes(phaseSubmittedJudges, judge);
   };
 
   const allJudgesComplete = !hasNonHostJudges || (judges.length > 0 && judges.every(judge => judgeHasSubmittedPhase(judge)));

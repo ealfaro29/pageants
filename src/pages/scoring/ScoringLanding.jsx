@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { arrayUnion, collection, doc, getCountFromServer, getDoc, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
@@ -21,6 +21,7 @@ import {
 } from './scoringTheme';
 import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
 import { buildSessionId, normalizeSessionCodeSuffix, resolveLookupSessionIds, SESSION_CODE_PREFIX } from './sessionCodeUtils';
+import { getCachedSessionCounter, incrementSessionCounter, loadSessionCounter } from './sessionCounter';
 
 function normalizeJudgeIdentity(value) {
   return String(value || '').trim().toLowerCase();
@@ -55,7 +56,7 @@ export default function ScoringLanding() {
   const [sessionCode, setSessionCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [sessionCounter, setSessionCounter] = useState(null);
+  const [sessionCounter, setSessionCounter] = useState(() => getCachedSessionCounter());
   const [mobileSection, setMobileSection] = useState('home');
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
   const t = scoringCopy[language];
@@ -80,18 +81,16 @@ export default function ScoringLanding() {
 
   useEffect(() => {
     let active = true;
-    const loadSessionCounter = async () => {
-      try {
-        const sessionsQuery = query(collection(db, 'sessions'), where('createdAt', '>', 0));
-        const snapshot = await getCountFromServer(sessionsQuery);
+    const cachedAtStart = getCachedSessionCounter();
+    loadSessionCounter()
+      .then(count => {
         if (!active) return;
-        setSessionCounter(snapshot.data().count);
-      } catch {
-        if (!active) return;
+        setSessionCounter(count);
+      })
+      .catch(() => {
+        if (!active || cachedAtStart !== null) return;
         setSessionCounter(null);
-      }
-    };
-    loadSessionCounter();
+      });
     return () => { active = false; };
   }, []);
 
@@ -146,6 +145,7 @@ export default function ScoringLanding() {
 
     try {
       await setDoc(doc(db, 'sessions', nextSessionId), sessionData);
+      incrementSessionCounter().catch(() => {});
       navigate(`/session/${nextSessionId}?judge=${encodeURIComponent(hostName.trim())}`);
     } catch (submitError) {
       console.error(submitError);

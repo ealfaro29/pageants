@@ -8,6 +8,7 @@ import { getDefaultPhaseName, getStoredScoringLanguage, persistScoringLanguage, 
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
 import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
 import { buildSessionId } from './sessionCodeUtils';
+import { incrementSessionCounter } from './sessionCounter';
 
 export default function CreateSession() {
   const [theme] = useState(getStoredScoringTheme());
@@ -58,6 +59,7 @@ export default function CreateSession() {
 
     try {
       await setDoc(doc(db, "sessions", sessionId), sessionData);
+      incrementSessionCounter().catch(() => {});
       navigate(`/session/${sessionId}?judge=${encodeURIComponent(judgeName.trim())}`);
     } catch(err) {
       console.error(err);
