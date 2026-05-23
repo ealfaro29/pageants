@@ -1840,9 +1840,8 @@ export default function SessionBoard() {
                         const isAbsent = Boolean(p.isAbsent);
                         const hasScore = p.myScore !== undefined && p.myScore !== null;
                         const isQualified = shouldShowCutPreview ? qualifiedIds.has(p.id) : true;
-                        const sliderValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '0');
-                        const displayScore = Number.parseFloat(sliderValue);
-                        const showScoreValue = Number.isFinite(displayScore);
+                        const scoreInputValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '');
+                        const sliderValue = scoreInputValue === '' ? '0' : scoreInputValue;
 
                         return (
                           <tr key={p.id} className={`transition-all duration-300 ${shouldShowCutPreview && !isQualified ? 'opacity-40 grayscale-[50%]' : 'hover:bg-app-border/30'}`} style={shouldShowCutPreview && !isQualified ? { backgroundColor: 'var(--color-app-danger-soft)' } : undefined}>
@@ -1884,7 +1883,7 @@ export default function SessionBoard() {
                                     min="0"
                                     max="10"
                                     step="0.01"
-                                    value={sliderValue}
+                                    value={scoreInputValue}
                                     onChange={e => queueScoreSave(p.id, e.target.value)}
                                     onBlur={e => {
                                       const val = parseFloat(e.target.value);
