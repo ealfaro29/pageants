@@ -1771,7 +1771,7 @@ export default function SessionBoard() {
           ) : (
             <>
               {/* Scoring table */}
-              <div className="flex-1 overflow-auto pb-24 md:pb-0">
+              <div className="flex-1 overflow-auto">
                 {tableParticipants.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-app-muted/50 gap-2 p-4">
                     <Search className="w-10 h-10 opacity-20" />
@@ -1894,7 +1894,7 @@ export default function SessionBoard() {
               </div>
 
               {currentUserCanSubmitScores && (
-                <div className="hidden lg:block px-3 pb-2 pt-3 md:px-4 md:pt-4 shrink-0 border-t border-app-border/60 bg-app-card/90">
+                <div className="px-3 pb-2 pt-3 md:px-4 md:pt-4 shrink-0 border-t border-app-border/60 bg-app-card/90">
                   <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-app-muted/75">{t.board.submitScores}</p>
@@ -1925,7 +1925,7 @@ export default function SessionBoard() {
 
               {/* Advance button (host only) */}
               {isHost && (currentParticipants.length > 0 || currentPhaseIndex > 0) && (
-                <div className="hidden lg:block px-3 pb-3 pt-2 md:px-4 md:pb-4 shrink-0 border-t border-app-border/60 bg-app-card/95">
+                <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4 shrink-0 border-t border-app-border/60 bg-app-card/95">
                   <div className="rounded-xl border border-app-border/70 bg-app-card/45 px-3 py-3 md:px-4 md:py-3.5">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="text-xs text-app-muted/80 space-y-2 flex-1 min-w-[220px]">
@@ -1984,66 +1984,6 @@ export default function SessionBoard() {
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {(currentUserCanSubmitScores || (isHost && (currentParticipants.length > 0 || currentPhaseIndex > 0))) && (
-                <div className="lg:hidden shrink-0 border-t border-app-border/60 bg-app-card/95 px-2 pb-2 pt-2">
-                  <div className="flex items-center gap-2">
-                    {currentUserCanSubmitScores && (
-                      <button
-                        type="button"
-                        disabled={isSubmittingScores}
-                        onClick={() => submitCurrentJudgeScores().catch(() => {})}
-                        className="flex-1 scoring-btn-primary rounded-lg h-10 px-3 text-[10px] font-bold uppercase tracking-widest disabled:opacity-35"
-                      >
-                        {isSubmittingScores
-                          ? t.board.submitScoresBusy
-                          : currentUserSubmittedPhase
-                            ? t.board.resubmitScores
-                            : t.board.submitScores}
-                      </button>
-                    )}
-
-                    {isHost && canUndoPhase && !isSessionComplete && (
-                      <button
-                        type="button"
-                        onClick={() => undoPhaseAdvance().catch(() => {})}
-                        className={`scoring-btn-secondary rounded-lg h-10 px-3 text-[10px] font-bold uppercase tracking-widest ${undoAttempted && currentPhaseHasSavedScores ? 'scoring-btn-danger' : ''}`}
-                      >
-                        {undoAttempted && currentPhaseHasSavedScores ? t.board.confirmUndoPhase : t.board.undoPhase}
-                      </button>
-                    )}
-
-                    {isHost && canAdvance && (
-                      <button
-                        onClick={handlePhaseAction}
-                        disabled={isAdvancingPhase}
-                        className={`flex-1 rounded-lg h-10 px-3 text-[10px] font-bold uppercase tracking-widest ${
-                          forceAttempted
-                            ? 'scoring-btn-danger'
-                            : allJudgesComplete
-                              ? 'scoring-btn-primary'
-                              : 'scoring-btn-secondary'
-                        } ${isAdvancingPhase ? 'opacity-60 pointer-events-none' : ''}`}
-                      >
-                        {isAdvancingPhase
-                          ? t.board.advancingPhaseBusy
-                          : forceAttempted
-                            ? (isFinalRound ? t.board.forceViewWinner(pendingVotesCount) : t.board.forceAdvance(pendingVotesCount))
-                            : (isFinalRound ? t.board.viewWinner : t.board.advancePhase)}
-                      </button>
-                    )}
-                  </div>
-
-                  {submitScoreError && (
-                    <p className="mt-1.5 text-[11px] text-red-300">{submitScoreError}</p>
-                  )}
-                  {isHost && submitReminderAttempted && pendingSubmitJudges.length > 0 && (
-                    <p className="mt-1.5 text-[11px]" style={{ color: 'var(--color-app-warning)' }}>
-                      {t.board.pendingSubmitList(pendingSubmitJudges.join(', '))}
-                    </p>
-                  )}
                 </div>
               )}
             </>
