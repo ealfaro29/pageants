@@ -2,9 +2,55 @@
 // Extracted from legacy data-loader.js
 
 import { getRobloxThumbnailUrl } from './roblox-legacy.js';
-import { db } from '../core/firebase-config.js'; 
+import { auth, db } from '../core/firebase-config.js';
 import { collection, getDocs, updateDoc, doc, writeBatch } from "firebase/firestore";
 import { getIsoCode, ISO_MAP } from './iso-utils.js';
+
+const CATALOG_COLLECTIONS = ['textures', 'facebases', 'avatar', 'music'];
+
+function normalizeText(...values) {
+    const value = values.find(current => current !== null && current !== undefined && String(current).trim());
+    return value ? String(value).trim() : '';
+}
+
+function normalizeCodeId(item) {
+    return normalizeText(item.robloxId, item.codeId, item.assetId, item.idCode, item.code);
+}
+
+function normalizeImageSrc(item, codeId) {
+    return normalizeText(
+        item.remoteUrl,
+        item.imageUrl,
+        item.thumbnailUrl,
+        item.thumbUrl,
+        item.src,
+        item.url
+    ) || getRobloxThumbnailUrl(codeId);
+}
+
+function buildCollectionError(collectionName, error) {
+    const wrapped = new Error(`${collectionName}: ${error.code || error.name || 'error'} - ${error.message || error}`);
+    wrapped.collectionName = collectionName;
+    wrapped.originalError = error;
+    wrapped.code = error.code || 'catalog-load-error';
+    return wrapped;
+}
+
+async function readCatalogCollection(collectionName, currentUser) {
+    try {
+        return await getDocs(collection(db, collectionName));
+    } catch (error) {
+        if (error?.code === 'permission-denied' && currentUser?.getIdToken) {
+            await currentUser.getIdToken(true);
+            try {
+                return await getDocs(collection(db, collectionName));
+            } catch (retryError) {
+                throw buildCollectionError(collectionName, retryError);
+            }
+        }
+        throw buildCollectionError(collectionName, error);
+    }
+}
 
 /**
  * Updates a Facebase group (multiple variants) in Firestore.
@@ -77,73 +123,78 @@ export async function updateItemImageUrl(type, docId, newUrl) {
 
 export const parseItemName = () => { };
 
-export async function initializeAllData() {
+export async function initializeAllData(user = auth.currentUser) {
     console.log("DATA_LOADER: ☁️ Starting Cloud Data Load (Firebase ONLY)...");
 
     let sourceData = { textures: [], facebases: [], avatar: [], music: [] };
 
-    try {
-        const queries = [
-            getDocs(collection(db, 'textures')).catch(e => { console.warn("Failed textures", e); return { empty: true, forEach: () => {} }; }),
-            getDocs(collection(db, 'facebases')).catch(e => { console.warn("Failed facebases", e); return { empty: true, forEach: () => {} }; }),
-            getDocs(collection(db, 'avatar')).catch(e => { console.warn("Failed avatar", e); return { empty: true, forEach: () => {} }; }),
-            getDocs(collection(db, 'music')).catch(e => { console.warn("Failed music", e); return { empty: true, forEach: () => {} }; })
-        ];
-
-        const [texSnap, faceSnap, avSnap, musicSnap] = await Promise.all(queries);
-
-        texSnap.forEach(doc => sourceData.textures.push({ ...doc.data(), docId: doc.id }));
-        faceSnap.forEach(doc => sourceData.facebases.push({ ...doc.data(), docId: doc.id }));
-        avSnap.forEach(doc => sourceData.avatar.push({ ...doc.data(), docId: doc.id }));
-        musicSnap.forEach(doc => sourceData.music.push({ ...doc.data(), docId: doc.id }));
-
-    } catch (error) {
-        console.error("DATA_LOADER: CRITICAL ERROR - Could not load from Firebase.", error);
+    if (!user) {
+        throw new Error('Catalog requires an authenticated Firebase user before loading private collections.');
     }
 
+    await user.getIdToken();
+
+    const snapshots = await Promise.all(CATALOG_COLLECTIONS.map(collectionName => readCatalogCollection(collectionName, user)));
+    snapshots.forEach((snapshot, index) => {
+        const collectionName = CATALOG_COLLECTIONS[index];
+        snapshot.forEach(documentSnapshot => sourceData[collectionName].push({ ...documentSnapshot.data(), docId: documentSnapshot.id }));
+    });
+
     // Normalizar texturas
-    const allTextureItems = (sourceData.textures || []).map(item => ({
-        id: item.docId,
-        group: item.category || item.group || item.type,
-        displayName: item.displayName || item.fullName || item.name,
-        codeId: item.robloxId,
-        src: item.remoteUrl || getRobloxThumbnailUrl(item.robloxId),
-        type: 'texture',
-        baseName: item.baseName || item.name,
-        hidden: !!item.hidden
-    }));
+    const allTextureItems = (sourceData.textures || []).map(item => {
+        const codeId = normalizeCodeId(item);
+        const displayName = normalizeText(item.displayName, item.fullName, item.name, item.baseName, codeId, item.docId, 'Untitled texture');
+        return {
+            id: item.docId,
+            group: normalizeText(item.category, item.group, item.type, 'General'),
+            displayName,
+            codeId,
+            src: normalizeImageSrc(item, codeId),
+            type: 'texture',
+            baseName: normalizeText(item.baseName, item.name, displayName),
+            hidden: !!item.hidden
+        };
+    });
 
     // Normalizar facebases
-    const allFacebaseItems = (sourceData.facebases || []).map(item => ({
-        id: item.docId, // Use the real Firestore Document ID
-        group: (item.group || item.category || 'General').toUpperCase(),
-        displayName: item.displayName || item.name || item.variant,
-        codeId: item.robloxId,
-        src: item.remoteUrl || getRobloxThumbnailUrl(item.robloxId),
-        type: 'facebase',
-        hidden: !!item.hidden
-    }));
+    const allFacebaseItems = (sourceData.facebases || []).map(item => {
+        const codeId = normalizeCodeId(item);
+        return {
+            id: item.docId, // Use the real Firestore Document ID
+            group: normalizeText(item.group, item.category, 'General').toUpperCase(),
+            displayName: normalizeText(item.displayName, item.name, item.variant, item.baseName, codeId, item.docId, 'Untitled facebase'),
+            codeId,
+            src: normalizeImageSrc(item, codeId),
+            type: 'facebase',
+            hidden: !!item.hidden
+        };
+    });
 
     // Normalizar avatar items
-    const allAvatarItems = (sourceData.avatar || []).map(item => ({
-        id: item.docId,
-        group: (item.category || item.group || 'General').toUpperCase(),
-        displayName: item.displayName || item.name,
-        codeId: item.robloxId,
-        src: item.remoteUrl || getRobloxThumbnailUrl(item.robloxId),
-        type: 'avatar',
-        hidden: !!item.hidden
-    }));
+    const allAvatarItems = (sourceData.avatar || []).map(item => {
+        const codeId = normalizeCodeId(item);
+        return {
+            id: item.docId,
+            group: normalizeText(item.category, item.group, 'General').toUpperCase(),
+            displayName: normalizeText(item.displayName, item.name, item.fullName, codeId, item.docId, 'Untitled avatar item'),
+            codeId,
+            src: normalizeImageSrc(item, codeId),
+            type: 'avatar',
+            hidden: !!item.hidden
+        };
+    });
 
     const allMusicCodes = (sourceData.music || []).map(item => ({
         ...item,
         id: item.docId, // Consistency
+        title: normalizeText(item.title, item.name, item.displayName, item.docId, 'Untitled music'),
+        category: normalizeText(item.category, item.group, 'General'),
         hidden: !!item.hidden
     }));
     const facebaseCategories = generateFacebaseCategories(allFacebaseItems);
     const allTextureBasenames = allTextureItems.map(t => t.baseName);
 
-    return {
+    const normalizedData = {
         allFacebaseItems,
         facebaseCategories,
         allAvatarItems,
@@ -152,6 +203,15 @@ export async function initializeAllData() {
         allMusicCodes,
         rawDb: sourceData
     };
+
+    console.info('DATA_LOADER: ✅ Catalog counts', {
+        facebases: allFacebaseItems.length,
+        textures: allTextureItems.length,
+        avatar: allAvatarItems.length,
+        music: allMusicCodes.length
+    });
+
+    return normalizedData;
 }
 
 function generateFacebaseCategories(items) {

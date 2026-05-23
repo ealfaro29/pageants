@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './core/firebase-config.js';
 import Header from './components/Header';
@@ -33,10 +33,33 @@ const getFilterLabel = (tab, cat) => {
     return cat;
 };
 
+const CATALOG_TABS = ['facebases', 'avatar', 'textures', 'music', 'favorites'];
+const DEFAULT_CATALOG_TAB = 'facebases';
+
+function getCatalogTabFromPath(pathname) {
+    const tab = pathname.split('/').filter(Boolean)[1];
+    return CATALOG_TABS.includes(tab) ? tab : DEFAULT_CATALOG_TAB;
+}
+
+function getCatalogPath(tab) {
+    return tab === DEFAULT_CATALOG_TAB ? '/catalog' : `/catalog/${tab}`;
+}
+
+function getCatalogErrorMessage(error) {
+    if (!error) return '';
+    if (error.code === 'permission-denied' || String(error.message || '').includes('permission-denied')) {
+        return 'Firebase denied access to one or more catalog collections. The app is logged in, but Firestore rules are blocking textures, facebases, avatar, or music.';
+    }
+    return error.message || 'The catalog could not load from Firebase.';
+}
+
 function Dashboard({ user }) {
-    const [activeTab, setActiveTab] = useState('favorites');
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [activeTab, setActiveTabState] = useState(() => getCatalogTabFromPath(location.pathname));
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [dataError, setDataError] = useState('');
     const [showHidden, setShowHidden] = useState(false);
     const { isFavorite, toggleFavorite } = useFavorites();
     const { groups, createGroup, deleteGroup } = useGroups();
@@ -50,6 +73,15 @@ function Dashboard({ user }) {
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, item: null });
+
+    const setActiveTab = (tab) => {
+        if (!CATALOG_TABS.includes(tab)) return;
+        setActiveTabState(tab);
+        const nextPath = getCatalogPath(tab);
+        if (location.pathname !== nextPath) {
+            navigate(nextPath, { replace: true });
+        }
+    };
 
     const handleContextMenu = (e, item) => {
         if (!user) return;
@@ -115,11 +147,15 @@ function Dashboard({ user }) {
     }));
 
     const reloadData = async () => {
+        setLoading(true);
+        setDataError('');
         try {
-            const result = await initializeAllData();
+            const result = await initializeAllData(user);
             setData(result);
         } catch (error) {
             console.error("React Migration Error:", error);
+            setData(null);
+            setDataError(getCatalogErrorMessage(error));
         } finally {
             setLoading(false);
         }
@@ -127,7 +163,11 @@ function Dashboard({ user }) {
 
     useEffect(() => {
         reloadData();
-    }, []);
+    }, [user?.uid]);
+
+    useEffect(() => {
+        setActiveTabState(getCatalogTabFromPath(location.pathname));
+    }, [location.pathname]);
 
     const renderContent = () => {
         if (loading) {
@@ -139,7 +179,32 @@ function Dashboard({ user }) {
             )
         }
 
+        if (dataError) {
+            return (
+                <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-300">Catalog data failed to load</p>
+                    <p className="mt-3 text-sm leading-relaxed text-red-100/85">{dataError}</p>
+                    <button
+                        onClick={reloadData}
+                        className="mt-5 rounded-xl bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition hover:bg-zinc-200"
+                    >
+                        Retry
+                    </button>
+                </div>
+            );
+        }
+
         if (!data) return <p className="text-red-500 text-center p-10">Error loading data.</p>;
+
+        const renderEmptyState = (loadedCount) => {
+            const hasFilters = Boolean(searchQuery.trim()) || selectedCategory !== 'all';
+            const message = hasFilters
+                ? 'No results match the current search or category filter.'
+                : loadedCount > 0 && !showHidden
+                    ? 'Items are loaded, but none are visible with the current visibility settings. Use Show Hidden to review hidden items.'
+                    : 'No items were loaded for this section.';
+            return <p className="col-span-full text-center text-zinc-500 py-10">{message}</p>;
+        };
 
         // Helper: wraps a card with selection checkbox when in selection mode
         const SelectionWrap = ({ itemId, children }) => {
@@ -192,9 +257,7 @@ function Dashboard({ user }) {
             return (
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {renderTabGroups()}
-                    {items.length === 0 ? (
-                        <p className="col-span-full text-center text-zinc-500 py-10">No results found.</p>
-                    ) : items.map((item, index) => (
+                    {items.length === 0 ? renderEmptyState(data.allAvatarItems.length) : items.map((item, index) => (
                         <SelectionWrap key={item.id || `avatar_${index}`} itemId={item.id}>
                             <Card
                                 id={item.id}
@@ -229,9 +292,7 @@ function Dashboard({ user }) {
             return (
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {renderTabGroups()}
-                    {groups.length === 0 ? (
-                        <p className="col-span-full text-center text-zinc-500 py-10">No results found.</p>
-                    ) : groups.map(group => (
+                    {groups.length === 0 ? renderEmptyState(data.allTextureItems.length) : groups.map(group => (
                         <SelectionWrap key={group.baseName} itemId={group.mainVariant.id}>
                             <TextureCard
                                 group={group}
@@ -265,9 +326,7 @@ function Dashboard({ user }) {
             return (
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {renderTabGroups()}
-                    {groups.length === 0 ? (
-                        <p className="col-span-full text-center text-zinc-500 py-10">No results found.</p>
-                    ) : groups.map(group => (
+                    {groups.length === 0 ? renderEmptyState(data.allFacebaseItems.length) : groups.map(group => (
                         <SelectionWrap key={group.baseDisplayName + group.group} itemId={group.defaultItem.id}>
                             <FacebaseCard
                                 group={group}
@@ -302,9 +361,7 @@ function Dashboard({ user }) {
             return (
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {renderTabGroups()}
-                    {items.length === 0 ? (
-                        <p className="col-span-full text-center text-zinc-500 py-10">No results found.</p>
-                    ) : items.map((item, index) => (
+                    {items.length === 0 ? renderEmptyState((data.allMusicCodes || []).length) : items.map((item, index) => (
                         <SelectionWrap key={item.id || `music_${index}`} itemId={item.id}>
                             <MusicCard
                                 code={item}

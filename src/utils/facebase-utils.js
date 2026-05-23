@@ -5,24 +5,26 @@ export function groupFacebaseVariants(items) {
     for (const item of items) {
         if (!item) continue;
         
-        let baseDisplayName = item.displayName;
-        const match = item.displayName.match(variantRegex);
+        const displayName = String(item.displayName || item.name || item.variant || item.id || 'Untitled facebase').trim();
+        let baseDisplayName = displayName;
+        const match = displayName.match(variantRegex);
 
         if (match) {
             baseDisplayName = match[1].trim();
         }
 
-        const key = `${item.group}-${baseDisplayName}`;
+        const group = String(item.group || 'GENERAL').trim().toUpperCase();
+        const key = `${group}-${baseDisplayName}`;
 
         if (!grouped[key]) {
             grouped[key] = {
-                group: item.group,
+                group,
                 baseDisplayName: baseDisplayName,
                 items: []
             };
         }
 
-        grouped[key].items.push(item);
+        grouped[key].items.push({ ...item, displayName, group });
     }
 
     return Object.values(grouped).map(g => {
@@ -30,7 +32,7 @@ export function groupFacebaseVariants(items) {
         const itemsList = g.items;
         
         itemsList.forEach(item => {
-            const match = item.displayName.match(variantRegex);
+            const match = String(item.displayName || '').match(variantRegex);
             const variant = match ? match[2].trim().toUpperCase() : 'default';
             
             // If this variant slot is already occupied, use a unique key to prevent disappearance
