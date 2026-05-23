@@ -6,6 +6,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 import { migrateFacebaseCountries, decoupleFacebaseNames } from '../utils/data-hooks.js';
 import { getCountryList } from '../utils/iso-utils.js';
+import { cleanRobloxAssetId, resolveRobloxThumbnail } from '../utils/roblox-thumbnails.js';
 
 const CATEGORIES = {
     texture: ["Mesh", "Solid", "Translucid", "Mixed", "Makeup", "Tattoos", "Skin Details", "Fantasy"],
@@ -66,33 +67,12 @@ export default function AdminModal({ isOpen, onClose }) {
     const fetchPreview = async (id) => {
         setPreviewState('loading');
         setPreviewUrl('');
-        const robloxApi = `https://thumbnails.roblox.com/v1/assets?assetIds=${id}&size=420x420&format=Png&isCircular=false`;
-        const proxies = [
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(robloxApi)}`,
-            `https://corsproxy.io/?${encodeURIComponent(robloxApi)}`,
-            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(robloxApi)}`
-        ];
-
-        let foundUrl = null;
-        for (const url of proxies) {
-            try {
-                const res = await fetch(url);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.data?.length > 0 && data.data[0].state === 'Completed') {
-                        foundUrl = data.data[0].imageUrl;
-                        break;
-                    }
-                }
-            } catch (e) {
-                // ignore and try next
-            }
-        }
-
-        if (foundUrl) {
+        try {
+            const foundUrl = await resolveRobloxThumbnail(id);
+            if (!foundUrl) throw new Error('No thumbnail returned');
             setPreviewUrl(foundUrl);
             setPreviewState('valid');
-        } else {
+        } catch (error) {
             setPreviewState('failed');
         }
     };
@@ -106,10 +86,11 @@ export default function AdminModal({ isOpen, onClose }) {
         try {
             const collectionName = itemType === 'texture' ? 'textures' : itemType === 'facebase' ? 'facebases' : 'avatar';
             const finalUrl = previewState === 'force' ? null : previewUrl;
+            const cleanId = cleanRobloxAssetId(robloxId) || robloxId.trim();
 
             await addDoc(collection(db, collectionName), {
-                id: robloxId,
-                robloxId: robloxId,
+                id: cleanId,
+                robloxId: cleanId,
                 name: itemName,
                 category: category,
                 type: itemType,

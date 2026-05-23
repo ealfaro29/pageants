@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, RefreshCw, Layers, Smile, Pencil, Save, X } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
 import { getFlagEmoji, getCountryList } from '../utils/iso-utils.js';
-import { updateItemImageUrl, updateFacebaseGroup, toggleItemVisibility } from '../utils/data-hooks';
+import { updateItemImageUrl, updateFacebaseGroup } from '../utils/data-hooks';
+import CatalogImage from './CatalogImage.jsx';
 
 /**
  * FacebaseCard — Displays a facebase variant group.
@@ -65,8 +66,13 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
             const newSrc = await reloadRobloxImage(assetId);
             if (newSrc) {
                 setOverrideSrc(newSrc);
-                // Persist the heal
-                await updateItemImageUrl(variantType, variantId, newSrc);
+                if (isAdmin) {
+                    try {
+                        await updateItemImageUrl(variantType, variantId, newSrc);
+                    } catch (error) {
+                        console.warn('Image refreshed locally but could not be saved.', error);
+                    }
+                }
             }
         } finally {
             setReloading(false);
@@ -178,8 +184,9 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
 
                         {/* Main Image View */}
                         <div className="relative">
-                            <img
+                            <CatalogImage
                                 src={overrideSrc || activeVariant.src}
+                                codeId={activeVariant.codeId}
                                 alt={group.baseDisplayName}
                                 loading="lazy"
                                 className="w-full h-auto object-cover aspect-square rounded-md main-image"

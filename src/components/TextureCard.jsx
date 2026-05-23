@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, RefreshCw, Layers, X } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
-import { updateItemImageUrl, toggleItemVisibility } from '../utils/data-hooks';
+import { updateItemImageUrl } from '../utils/data-hooks';
+import CatalogImage from './CatalogImage.jsx';
 
 /**
  * TextureCard — Displays a texture variant group.
@@ -41,8 +42,13 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
             const newSrc = await reloadRobloxImage(assetId);
             if (newSrc) {
                 setOverrideSrc(newSrc);
-                // Persist the heal
-                await updateItemImageUrl(variantType, variantId, newSrc);
+                if (isAdmin) {
+                    try {
+                        await updateItemImageUrl(variantType, variantId, newSrc);
+                    } catch (error) {
+                        console.warn('Image refreshed locally but could not be saved.', error);
+                    }
+                }
             }
         } finally {
             setReloading(false);
@@ -106,8 +112,9 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
 
                         {/* Main Image View */}
                         <div className="relative">
-                            <img
+                            <CatalogImage
                                 src={overrideSrc || activeVariant.src}
+                                codeId={activeVariant.codeId}
                                 alt={activeVariant.displayName}
                                 loading="lazy"
                                 className="w-full h-auto object-cover aspect-square rounded-md main-image"
@@ -180,7 +187,7 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
                                                         setOverrideSrc(null);
                                                     }}
                                                 >
-                                                    <img src={variant.src} alt={variant.displayName} loading="lazy" className="w-full h-auto object-cover aspect-square rounded-md" />
+                                                    <CatalogImage src={variant.src} codeId={variant.codeId} alt={variant.displayName} loading="lazy" className="w-full h-auto object-cover aspect-square rounded-md" />
                                                     <span className="variant-name truncate px-1">
                                                         {vName}
                                                     </span>

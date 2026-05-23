@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Copy, Check, RefreshCw } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
-import { updateItemImageUrl, toggleItemVisibility } from '../utils/data-hooks';
+import { updateItemImageUrl } from '../utils/data-hooks';
+import CatalogImage from './CatalogImage.jsx';
 
 export default function Card({ id, displayName, group, imageSrc, codeId, isFavorite, onToggleFavorite, type = 'avatar', isAdmin, isHidden, onRefresh, onContextMenu }) {
     const [copied, setCopied] = useState(false);
@@ -29,8 +30,13 @@ export default function Card({ id, displayName, group, imageSrc, codeId, isFavor
             const newSrc = await reloadRobloxImage(codeId);
             if (newSrc) {
                 setOverrideSrc(newSrc);
-                // Persist the new verified URL to Firestore
-                await updateItemImageUrl(type, id, newSrc);
+                if (isAdmin) {
+                    try {
+                        await updateItemImageUrl(type, id, newSrc);
+                    } catch (error) {
+                        console.warn('Image refreshed locally but could not be saved.', error);
+                    }
+                }
             }
         } finally {
             setReloading(false);
@@ -56,8 +62,9 @@ export default function Card({ id, displayName, group, imageSrc, codeId, isFavor
             </div>
 
             <div className="relative">
-                <img
+                <CatalogImage
                     src={overrideSrc || imageSrc}
+                    codeId={codeId}
                     alt={displayName}
                     loading="lazy"
                     className="w-full h-auto object-cover aspect-square rounded-md"

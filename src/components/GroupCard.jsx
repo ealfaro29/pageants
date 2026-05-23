@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, RefreshCw, Layers, Trash2, X, Smile } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
 import { getFlagEmoji } from '../utils/iso-utils.js';
+import CatalogImage from './CatalogImage.jsx';
 
 /**
  * GroupCard — Displays a user-created group.
@@ -129,8 +130,9 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
 
                     {/* Main Image View */}
                     <div className="relative">
-                        <img
+                        <CatalogImage
                             src={overrideSrc || activeVariant.src}
+                            codeId={activeVariant.codeId}
                             alt={activeVariant.displayName || activeVariant.title}
                             loading="lazy"
                             className="w-full h-auto object-cover aspect-square rounded-md main-image"
@@ -212,7 +214,7 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
                                                     setOverrideSrc(null);
                                                 }}
                                             >
-                                                <img src={item.src} alt={item.displayName || item.title} loading="lazy" className="w-full h-auto object-cover aspect-square rounded-md" />
+                                                <CatalogImage src={item.src} codeId={item.codeId} alt={item.displayName || item.title} loading="lazy" className="w-full h-auto object-cover aspect-square rounded-md" />
                                                 <span className="variant-name truncate px-1">
                                                     {item.displayName || item.title}
                                                 </span>

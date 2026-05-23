@@ -1,10 +1,10 @@
 // src/utils/data-hooks.js
 // Extracted from legacy data-loader.js
 
-import { getRobloxThumbnailUrl } from './roblox-legacy.js';
 import { auth, db } from '../core/firebase-config.js';
 import { collection, getDocs, updateDoc, doc, writeBatch } from "firebase/firestore";
 import { getIsoCode, ISO_MAP } from './iso-utils.js';
+import { cleanRobloxAssetId } from './roblox-thumbnails.js';
 
 const CATALOG_COLLECTIONS = ['textures', 'facebases', 'avatar', 'music'];
 
@@ -14,10 +14,11 @@ function normalizeText(...values) {
 }
 
 function normalizeCodeId(item) {
-    return normalizeText(item.robloxId, item.codeId, item.assetId, item.idCode, item.code);
+    const rawCode = normalizeText(item.robloxId, item.codeId, item.assetId, item.idCode, item.code);
+    return cleanRobloxAssetId(rawCode) || rawCode;
 }
 
-function normalizeImageSrc(item, codeId) {
+function normalizeImageSrc(item) {
     return normalizeText(
         item.remoteUrl,
         item.imageUrl,
@@ -25,7 +26,7 @@ function normalizeImageSrc(item, codeId) {
         item.thumbUrl,
         item.src,
         item.url
-    ) || getRobloxThumbnailUrl(codeId);
+    );
 }
 
 function buildCollectionError(collectionName, error) {
@@ -149,7 +150,7 @@ export async function initializeAllData(user = auth.currentUser) {
             group: normalizeText(item.category, item.group, item.type, 'General'),
             displayName,
             codeId,
-            src: normalizeImageSrc(item, codeId),
+            src: normalizeImageSrc(item),
             type: 'texture',
             baseName: normalizeText(item.baseName, item.name, displayName),
             hidden: !!item.hidden
@@ -164,7 +165,7 @@ export async function initializeAllData(user = auth.currentUser) {
             group: normalizeText(item.group, item.category, 'General').toUpperCase(),
             displayName: normalizeText(item.displayName, item.name, item.variant, item.baseName, codeId, item.docId, 'Untitled facebase'),
             codeId,
-            src: normalizeImageSrc(item, codeId),
+            src: normalizeImageSrc(item),
             type: 'facebase',
             hidden: !!item.hidden
         };
@@ -178,7 +179,7 @@ export async function initializeAllData(user = auth.currentUser) {
             group: normalizeText(item.category, item.group, 'General').toUpperCase(),
             displayName: normalizeText(item.displayName, item.name, item.fullName, codeId, item.docId, 'Untitled avatar item'),
             codeId,
-            src: normalizeImageSrc(item, codeId),
+            src: normalizeImageSrc(item),
             type: 'avatar',
             hidden: !!item.hidden
         };
