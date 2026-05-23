@@ -128,6 +128,9 @@ export default function PhaseReportModal({
   const winnerPhaseAverage = winnerPhaseValues.length > 0
     ? winnerPhaseValues.reduce((sum, value) => sum + value, 0) / winnerPhaseValues.length
     : 0;
+  const runnerUps = (isTotalScoring ? overallResults : rankedParticipants)
+    .filter(participant => participant.id !== winner?.id)
+    .slice(0, 2);
   
   // Calculate elimination line for the table
   const cutoffLimit = selectedPhase?.cutoff || rankedParticipants.length;
@@ -405,6 +408,29 @@ export default function PhaseReportModal({
                       <div className="glass-panel px-6 py-6 rounded-2xl border-app-accent/25">
                         <p className="text-[10px] uppercase tracking-[0.3em] text-app-muted/70 font-bold mb-3">{t.board.winnerPhaseLabel}</p>
                         <p className="text-xl text-app-text font-semibold">{winnerPhaseName}</p>
+                      </div>
+                    </div>
+                  )}
+                  {runnerUps.length > 0 && (
+                    <div className="mt-10 w-full max-w-3xl border-t border-app-accent/20 pt-6">
+                      <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.32em] text-app-muted/60">{t.board.runnerUpsTitle}</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {runnerUps.map((participant, idx) => (
+                          <div
+                            key={`winner-runner-up-${participant.id}`}
+                            className="rounded-2xl border border-app-border/60 bg-app-card/45 px-4 py-3 text-left"
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-app-accent/80">
+                              {idx === 0 ? t.board.firstRunnerUpLabel : t.board.secondRunnerUpLabel}
+                            </p>
+                            <div className="mt-2 flex items-center gap-3">
+                              <span className="text-2xl leading-none">{participant.flag}</span>
+                              <p className="min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wide text-app-text">
+                                {participant.name}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
