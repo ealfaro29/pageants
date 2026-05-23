@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'pageants';
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
-const APP_SHELL = ['/manifest.json', '/icon-512.png'];
+const APP_SHELL = ['/index.html', '/manifest.json', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -58,9 +58,17 @@ async function handleNavigationRequest(request) {
 
     if (freshResponse.ok) {
       await cache.put('/index.html', freshResponse.clone());
+      return freshResponse;
     }
 
-    return freshResponse;
+    const shellResponse = await fetch(new Request('/index.html', { cache: 'no-store' }));
+    if (shellResponse.ok) {
+      await cache.put('/index.html', shellResponse.clone());
+      return shellResponse;
+    }
+
+    const cachedResponse = await cache.match('/index.html');
+    return cachedResponse || freshResponse;
   } catch (error) {
     const cachedResponse = await cache.match('/index.html');
     if (cachedResponse) {
