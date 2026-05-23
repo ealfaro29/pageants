@@ -353,14 +353,14 @@ export default function SessionBoard() {
   }, [sessionId, judgeName, navigate]);
 
   useEffect(() => {
-    if (!sessionId || !session || session.host !== judgeName) return;
+    if (!sessionId || !session?.host || session.host !== judgeName) return;
     const pingHostPresence = () => {
       updateDoc(doc(db, "sessions", sessionId), { hostLastSeenAt: Date.now() }).catch(() => {});
     };
     pingHostPresence();
     const timer = setInterval(pingHostPresence, 60000);
     return () => clearInterval(timer);
-  }, [sessionId, session, judgeName]);
+  }, [sessionId, session?.host, judgeName]);
 
   useEffect(() => {
     if (!sessionId || !session) return;
@@ -1475,20 +1475,8 @@ export default function SessionBoard() {
         {/* LEFT: TABLERO DE PUNTUACIÓN (CARD) - 60% */}
         <div className={`lg:w-[66%] xl:w-[68%] flex flex-col min-h-0 bg-app-card rounded-2xl shadow-xl border border-app-border overflow-hidden ${activeTab !== 'scoring' ? 'hidden lg:flex' : 'flex'} ${isSessionComplete ? 'bg-gradient-to-br from-app-card to-app-border/10' : ''}`}>
           {/* Phase header */}
-          <div className="p-2 md:p-4 border-b border-app-border/50 bg-app-card/50 shrink-0">
-            <div className="flex items-center gap-2 md:gap-3 overflow-x-auto pb-1 scrollbar-none">
-              {/* Phase nav pills (completed + current) */}
-              {phases.map((ph, i) => (
-                <div key={i} className={`text-xs px-2.5 py-1 rounded-md font-medium shrink-0 ${
-                  i === currentPhaseIndex ? 'scoring-badge-active' :
-                  isPhaseResultPublished(ph) ? 'bg-app-border text-app-muted/70' : 'bg-app-border/30 text-app-muted/50'
-                }`}>
-                  {ph.name}
-                  {isPhaseResultPublished(ph) && <span className="ml-1 text-app-muted/50">✓</span>}
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 md:gap-4 mt-2.5 md:mt-3 flex-wrap">
+          <div className="px-2.5 md:px-3 py-2 border-b border-app-border/50 bg-app-card/50 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
               {isHost ? (
                 <input
                   type="text" value={phaseNameDraft}
@@ -1505,37 +1493,54 @@ export default function SessionBoard() {
                       e.currentTarget.blur();
                     }
                   }}
-                  className="bg-transparent text-base sm:text-xl font-bold text-app-text focus:outline-none border-b border-transparent focus:border-app-border transition-colors flex-1 min-w-0"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-transparent bg-app-border/15 px-2.5 text-sm sm:text-base font-black uppercase tracking-tight text-app-text transition-colors focus:outline-none focus:border-app-accent focus:bg-app-card"
                   placeholder={t.board.phaseNamePlaceholder}
                 />
               ) : (
-                <h2 className="text-base sm:text-xl font-bold text-app-text">{currentPhase.name}</h2>
+                <h2 className="min-w-0 flex-1 truncate text-sm sm:text-base font-black uppercase tracking-tight text-app-text">{currentPhase.name}</h2>
               )}
               {isHost && (
-                <div className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-app-accent/35 bg-app-accent/10 px-3 py-2 shadow-[0_0_0_1px_var(--color-app-accent-muted)]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-app-muted/90 uppercase tracking-widest font-bold">{t.board.classifyLabel}</span>
+                <div
+                  className="shrink-0 rounded-lg border border-app-accent/35 bg-app-accent/10 px-2 py-1 shadow-[0_0_0_1px_var(--color-app-accent-muted)]"
+                  title={t.board.classifyHint}
+                >
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-app-muted/90 uppercase tracking-[0.18em] font-black">{t.board.classifyLabel}</span>
                     <span className="inline-flex h-1.5 w-1.5 rounded-full bg-app-accent" />
-                  </div>
+                  </label>
                   <input
                     type="number" min="1" max={currentParticipants.length || 99}
                     value={currentPhase.cutoff || ''}
                     onChange={e => updatePhaseCutoff(e.target.value)}
                     placeholder="—"
-                    className="mt-1 bg-transparent text-xl text-app-text font-mono font-black text-center focus:outline-none w-16"
+                    aria-label={t.board.classifyLabel}
+                    className="mt-0.5 h-6 w-12 bg-transparent text-center font-mono text-base font-black text-app-text focus:outline-none"
                   />
-                  <p className="mt-1 text-[10px] text-app-muted/80 uppercase tracking-wider">{t.board.classifyHint}</p>
                 </div>
               )}
             </div>
+            {phases.length > 1 && (
+              <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {/* Phase nav pills (completed + current) */}
+                {phases.map((ph, i) => (
+                  <div key={i} className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    i === currentPhaseIndex ? 'scoring-badge-active' :
+                    isPhaseResultPublished(ph) ? 'bg-app-border text-app-muted/70' : 'bg-app-border/30 text-app-muted/50'
+                  }`}>
+                    {ph.name}
+                    {isPhaseResultPublished(ph) && <span className="ml-1 text-app-muted/50">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
             {!isHost && currentPhase.cutoff && (
-              <p className="text-xs text-app-muted/50 mt-1">{t.board.classifySummary(currentPhase.cutoff, currentParticipants.length)}</p>
+              <p className="mt-1 text-[11px] text-app-muted/50">{t.board.classifySummary(currentPhase.cutoff, currentParticipants.length)}</p>
             )}
           </div>
 
           {/* Search bar (host, first phase only for adding) */}
           {isHost && currentPhaseIndex === 0 && !isSessionComplete && (
-            <div className="px-3 md:px-5 py-3 md:py-4 border-b border-app-border/30 bg-app-card/30 shrink-0">
+            <div className="px-2.5 md:px-3 py-2 border-b border-app-border/30 bg-app-card/30 shrink-0">
               {session.type === 'Nacional' && !selectedParentCountry && (
                 <div className="relative mb-2" ref={searchRef}>
                   <div className="relative">
@@ -1608,105 +1613,8 @@ export default function SessionBoard() {
               )}
               {(session.type === 'Global' || (session.type === 'Nacional' && selectedParentCountry)) && (
                 <>
-                  <div className="mb-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setIsBulkListOpen(prev => !prev)}
-                      className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5"
-                    >
-                      <ClipboardList className="w-3.5 h-3.5" />
-                      {t.board.bulkAddButton}
-                    </button>
-                  </div>
-                  {isBulkListOpen && (
-                    <div className="mb-3 rounded-xl border border-app-border/70 bg-app-card/55 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-app-muted/85">{t.board.bulkAddTitle}</p>
-                        <button
-                          type="button"
-                          onClick={() => setIsBulkListOpen(false)}
-                          className="text-[11px] text-app-muted/80 hover:text-app-text"
-                        >
-                          {t.board.bulkAddClose}
-                        </button>
-                      </div>
-                      <p className="mt-1 text-xs text-app-muted/75">{t.board.bulkAddHelp}</p>
-                      <textarea
-                        value={bulkListRawText}
-                        onChange={e => setBulkListRawText(e.target.value)}
-                        placeholder={session.type === 'Global' ? t.board.bulkAddPlaceholderGlobal : t.board.bulkAddPlaceholderNational}
-                        className="mt-3 scoring-input w-full rounded-lg min-h-28 p-3 text-xs leading-5 resize-y"
-                      />
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={parseBulkList}
-                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest"
-                        >
-                          {t.board.bulkAddPreviewButton}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBulkListRawText('');
-                            setBulkListPreview([]);
-                            setBulkListSkipped([]);
-                            setBulkListTotalLines(0);
-                            setBulkListParseAttempted(false);
-                          }}
-                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest"
-                        >
-                          {t.board.bulkAddClear}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!bulkListPreview.length || isBulkApplying}
-                          onClick={() => addParticipantsFromBulkList().catch(() => {})}
-                          className="scoring-btn-primary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest disabled:opacity-35"
-                        >
-                          {isBulkApplying ? t.board.bulkAddApplying : t.board.bulkAddApply(bulkListPreview.length)}
-                        </button>
-                      </div>
-                      {bulkListParseAttempted && (
-                        <div className="mt-3 rounded-lg border border-app-border/60 bg-app-card/35 p-3">
-                          <p className="text-xs text-app-text">
-                            {t.board.bulkAddPreviewSummary(bulkListPreview.length, bulkListTotalLines, bulkListSkipped.length)}
-                          </p>
-                          {bulkListPreview.length > 0 && (
-                            <div className="mt-2 max-h-28 overflow-auto space-y-1 custom-scrollbar">
-                              {bulkListPreview.map(item => (
-                                <div key={`preview-${item.name}-${item.id}`} className="text-xs text-app-muted/90">
-                                  {item.flag ? `${item.flag} ` : ''}{item.name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {bulkListSkipped.length > 0 && (
-                            <div className="mt-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] text-app-muted/80 uppercase tracking-wider">{t.board.bulkAddSkippedTitle}</p>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsSkippedReviewOpen(true)}
-                                  className="scoring-btn-secondary rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
-                                >
-                                  {t.board.bulkAddReviewSkipped(bulkListSkipped.length)}
-                                </button>
-                              </div>
-                              <div className="mt-1 max-h-20 overflow-auto space-y-1 custom-scrollbar">
-                                {bulkListSkipped.slice(0, 8).map(item => (
-                                  <div key={`skip-${item.line}-${item.value}`} className="text-[11px] text-app-muted/70">
-                                    {t.board.bulkAddSkippedLine(item.line)}: {item.value}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="relative" ref={searchRef}>
+                  <div className="flex items-center gap-2">
+                    <div className="relative min-w-0 flex-1" ref={searchRef}>
                     <div className="relative">
                       <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         onKeyDown={e => {
@@ -1725,8 +1633,8 @@ export default function SessionBoard() {
                         }}
                         disabled={session.type === 'Nacional' && loadingCities}
                         placeholder={session.type === 'Global' ? t.board.addCountryPlaceholder : loadingCities ? t.board.loadingCities : t.board.addCityPlaceholder}
-                        className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm disabled:opacity-40" />
-                      <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
+                        className="scoring-input h-9 w-full rounded-lg pl-9 pr-3 text-sm disabled:opacity-40" />
+                      <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-2.5" />
                     </div>
                     <AnimatePresence>
                       {searchResults.length > 0 && (
@@ -1774,7 +1682,107 @@ export default function SessionBoard() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkListOpen(prev => !prev)}
+                      className={`h-9 shrink-0 rounded-lg px-2.5 text-[10px] font-black uppercase tracking-widest inline-flex items-center justify-center gap-1.5 ${isBulkListOpen ? 'scoring-btn-primary' : 'scoring-btn-secondary'}`}
+                      title={t.board.bulkAddButton}
+                      aria-label={t.board.bulkAddButton}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      <span className="sm:hidden">{t.board.bulkAddShort || t.board.bulkAddButton}</span>
+                      <span className="hidden sm:inline">{t.board.bulkAddButton}</span>
+                    </button>
                   </div>
+                  {isBulkListOpen && (
+                    <div className="mt-2 rounded-xl border border-app-border/70 bg-app-card/55 p-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-app-muted/85">{t.board.bulkAddTitle}</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsBulkListOpen(false)}
+                          className="text-[11px] text-app-muted/80 hover:text-app-text"
+                        >
+                          {t.board.bulkAddClose}
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[11px] text-app-muted/75">{t.board.bulkAddHelp}</p>
+                      <textarea
+                        value={bulkListRawText}
+                        onChange={e => setBulkListRawText(e.target.value)}
+                        placeholder={session.type === 'Global' ? t.board.bulkAddPlaceholderGlobal : t.board.bulkAddPlaceholderNational}
+                        className="mt-2 scoring-input w-full rounded-lg min-h-20 p-2.5 text-xs leading-5 resize-y"
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={parseBulkList}
+                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          {t.board.bulkAddPreviewButton}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBulkListRawText('');
+                            setBulkListPreview([]);
+                            setBulkListSkipped([]);
+                            setBulkListTotalLines(0);
+                            setBulkListParseAttempted(false);
+                          }}
+                          className="scoring-btn-secondary rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          {t.board.bulkAddClear}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!bulkListPreview.length || isBulkApplying}
+                          onClick={() => addParticipantsFromBulkList().catch(() => {})}
+                          className="scoring-btn-primary rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest disabled:opacity-35"
+                        >
+                          {isBulkApplying ? t.board.bulkAddApplying : t.board.bulkAddApply(bulkListPreview.length)}
+                        </button>
+                      </div>
+                      {bulkListParseAttempted && (
+                        <div className="mt-2 rounded-lg border border-app-border/60 bg-app-card/35 p-2.5">
+                          <p className="text-xs text-app-text">
+                            {t.board.bulkAddPreviewSummary(bulkListPreview.length, bulkListTotalLines, bulkListSkipped.length)}
+                          </p>
+                          {bulkListPreview.length > 0 && (
+                            <div className="mt-2 max-h-24 overflow-auto space-y-1 custom-scrollbar">
+                              {bulkListPreview.map(item => (
+                                <div key={`preview-${item.name}-${item.id}`} className="text-xs text-app-muted/90">
+                                  {item.flag ? `${item.flag} ` : ''}{item.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {bulkListSkipped.length > 0 && (
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] text-app-muted/80 uppercase tracking-wider">{t.board.bulkAddSkippedTitle}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsSkippedReviewOpen(true)}
+                                  className="scoring-btn-secondary rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                  {t.board.bulkAddReviewSkipped(bulkListSkipped.length)}
+                                </button>
+                              </div>
+                              <div className="mt-1 max-h-16 overflow-auto space-y-1 custom-scrollbar">
+                                {bulkListSkipped.slice(0, 8).map(item => (
+                                  <div key={`skip-${item.line}-${item.value}`} className="text-[11px] text-app-muted/70">
+                                    {t.board.bulkAddSkippedLine(item.line)}: {item.value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
