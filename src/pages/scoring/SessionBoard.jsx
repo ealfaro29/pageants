@@ -229,6 +229,7 @@ export default function SessionBoard() {
   const [cutoffModalMax, setCutoffModalMax] = useState(0);
   const [cutoffModalError, setCutoffModalError] = useState('');
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false);
+  const [hostAppearsInactive, setHostAppearsInactive] = useState(false);
 
   // Search state
   const [countries, setCountries] = useState([]);
@@ -439,16 +440,8 @@ export default function SessionBoard() {
 
     const tryTransferHostControls = () => {
       if (!hasPresenceSnapshot) return;
-      if (transferAttempted) return;
-      if (Date.now() - latestHostSeenAt < HOST_INACTIVE_THRESHOLD_MS) return;
-
-      transferAttempted = true;
-      updateDoc(doc(db, "sessions", sessionId), {
-        controlHost: firstBackupJudge,
-        controlHostAssignedAt: Date.now()
-      }).catch(() => {
-        transferAttempted = false;
-      });
+      const inactive = Date.now() - latestHostSeenAt >= HOST_INACTIVE_THRESHOLD_MS;
+      setHostAppearsInactive(inactive);
     };
 
     const unsubscribePresence = onSnapshot(doc(db, "sessions", sessionId, "presence", "host"), snapshot => {
@@ -473,6 +466,7 @@ export default function SessionBoard() {
     return () => {
       unsubscribePresence();
       clearInterval(timer);
+      setHostAppearsInactive(false);
     };
   }, [sessionId, session, judgeName]);
 
@@ -866,6 +860,18 @@ export default function SessionBoard() {
       controlHostAssignedAt: now,
       hostLastSeenAt: now
     });
+  };
+
+  const assumeHostControls = async () => {
+    if (!sessionId || !session) return;
+    const firstBackupJudge = getFirstBackupJudge(session);
+    if (!firstBackupJudge || !isSameJudge(firstBackupJudge, judgeName)) return;
+
+    await updateDoc(doc(db, "sessions", sessionId), {
+      controlHost: firstBackupJudge,
+      controlHostAssignedAt: Date.now()
+    });
+    setHostAppearsInactive(false);
   };
 
   const getNextPhasesWithUpdate = (phaseIndex, updater) => {
@@ -1284,6 +1290,9 @@ export default function SessionBoard() {
   const hasTransferredControls = !isSameJudge(controlHost, session.host);
   const showTransferredControlsNotice = isHost && hasTransferredControls;
   const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
+  const firstBackupJudge = getFirstBackupJudge(session);
+  const isFirstBackupJudge = firstBackupJudge && isSameJudge(firstBackupJudge, judgeName);
+  const showTakeoverControlsNotice = isFirstBackupJudge && hostAppearsInactive && !hasTransferredControls;
   const completedPhaseIndexes = phases
     .map((phase, idx) => (isPhaseResultPublished(phase) ? idx : null))
     .filter(idx => idx !== null);
@@ -1551,6 +1560,26 @@ export default function SessionBoard() {
               className="scoring-btn-primary rounded-lg h-10 px-4 text-xs font-bold uppercase tracking-widest"
             >
               {t.board.reclaimHostControls}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showTakeoverControlsNotice && (
+        <div className="px-3 sm:px-4 pt-3">
+          <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-amber-200">
+                {t.board.hostInactiveNotice}
+              </p>
+              <p className="text-sm text-app-text mt-1">{t.board.takeoverControlsPrompt}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => assumeHostControls().catch(() => {})}
+              className="rounded-lg border border-amber-300/30 bg-amber-500/15 px-4 h-10 text-xs font-bold uppercase tracking-widest text-amber-200 hover:bg-amber-500/25 transition-colors"
+            >
+              {t.board.assumeHostControls}
             </button>
           </div>
         </div>

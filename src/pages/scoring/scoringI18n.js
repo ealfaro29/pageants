@@ -297,6 +297,9 @@ export const scoringCopy = {
       controlsTransferredNotice: judgeName => `Controles de host transferidos a ${judgeName}`,
       controlsTransferredPrompt: 'El host original está inactivo. Puedes continuar administrando la sesión.',
       reclaimHostControls: 'Recuperar controles',
+      hostInactiveNotice: 'El anfitrión parece estar inactivo',
+      takeoverControlsPrompt: 'El host original no ha estado activo recientemente. ¿Deseas asumir el control de la sesión?',
+      assumeHostControls: 'Asumir control',
       hostNotVotingLabel: 'Host administra (sin voto)',
       backToJoin: 'Volver al acceso',
       settings: {
@@ -599,6 +602,9 @@ export const scoringCopy = {
       controlsTransferredNotice: judgeName => `Host controls transferred to ${judgeName}`,
       controlsTransferredPrompt: 'The original host is inactive. You can keep the session running.',
       reclaimHostControls: 'Reclaim host controls',
+      hostInactiveNotice: 'The host appears to be inactive',
+      takeoverControlsPrompt: 'The original host has not been active recently. Would you like to take over the session controls?',
+      assumeHostControls: 'Take over controls',
       hostNotVotingLabel: 'Host admin only (no vote)',
       backToJoin: 'Back to join',
       settings: {
