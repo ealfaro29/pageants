@@ -183,7 +183,7 @@ function normalizeParticipantName(value) {
 
 const FLAG_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
 const HOST_PRESENCE_INTERVAL_MS = 3 * 60 * 1000;
-const HOST_INACTIVE_THRESHOLD_MS = 6 * 60 * 1000;
+const HOST_INACTIVE_THRESHOLD_MS = 20 * 60 * 1000;
 const HOST_PRESENCE_CHECK_MS = 30 * 1000;
 
 export default function SessionBoard() {
@@ -400,7 +400,6 @@ export default function SessionBoard() {
   useEffect(() => {
     if (!sessionId || !session?.host || !isSameJudge(session.host, judgeName)) return;
     const pingHostPresence = () => {
-      if (document.visibilityState === 'hidden') return;
       setDoc(doc(db, "sessions", sessionId, "presence", "host"), {
         host: session.host,
         lastSeenAt: Date.now()
