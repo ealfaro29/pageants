@@ -1696,22 +1696,39 @@ export default function SessionBoard() {
           {isHost && currentPhaseIndex === 0 && !isSessionComplete && (
             <div className="px-2.5 md:px-3 py-2 border-b border-app-border/30 bg-app-card/30 shrink-0">
               {session.type === 'Nacional' && !selectedParentCountry && (
-                <div className="relative mb-2" ref={searchRef}>
+                <div className="mb-3 p-4 rounded-xl border border-app-accent/30 bg-app-accent/5 backdrop-blur-sm relative" ref={searchRef}>
+                  <div className="flex items-center gap-2.5 mb-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-app-accent/15 flex items-center justify-center text-app-accent">
+                      <Globe className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-app-accent">
+                        {currentLanguage === 'en' ? 'Step 1: Select Host Country' : 'Fase 1: Seleccionar País Sede'}
+                      </h4>
+                      <p className="text-[11px] text-app-muted/80 mt-0.5">
+                        {currentLanguage === 'en' ? 'Choose the parent country before adding cities.' : 'Selecciona el país para poder buscar y cargar sus ciudades.'}
+                      </p>
+                    </div>
+                  </div>
                   <div className="relative">
-                      <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        onKeyDown={e => {
-                          const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
-                          if (isEnter && searchResults.length === 1) {
-                            e.preventDefault();
-                            setSelectedParentCountry(searchResults[0]);
-                            setSearchQuery('');
-                            setSearchResults([]);
-                            e.currentTarget.blur();
-                          }
-                        }}
+                    <input 
+                      type="text" 
+                      value={searchQuery} 
+                      onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => {
+                        const isEnter = e.key === 'Enter' || e.code === 'Enter' || e.keyCode === 13;
+                        if (isEnter && searchResults.length === 1) {
+                          e.preventDefault();
+                          setSelectedParentCountry(searchResults[0]);
+                          setSearchQuery('');
+                          setSearchResults([]);
+                          e.currentTarget.blur();
+                        }
+                      }}
                       placeholder={t.board.addHostCountryFirst}
-                      className="scoring-input w-full rounded-lg h-10 pl-10 pr-3 text-sm" />
-                    <Search className="w-4 h-4 text-app-muted/70 absolute left-3 top-3" />
+                      className="w-full rounded-lg h-11 pl-10 pr-3 text-sm bg-app-card border-2 border-app-accent/40 focus:border-app-accent text-app-text outline-none transition-all placeholder:text-app-muted/50" 
+                    />
+                    <Globe className="w-4 h-4 text-app-accent absolute left-3 top-3.5" />
                   </div>
                   <AnimatePresence>
                     {searchResults.length > 0 && (
@@ -1720,7 +1737,7 @@ export default function SessionBoard() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl overflow-hidden z-30 max-h-48 overflow-y-auto p-1 custom-scrollbar"
+                        className="scoring-popover absolute mt-1 left-4 right-4 rounded-xl overflow-hidden z-30 max-h-48 overflow-y-auto p-1 custom-scrollbar"
                       >
                         {searchResults.map(c => (
                           <button key={c.id} onClick={() => { setSelectedParentCountry(c); setSearchQuery(''); setSearchResults([]); }}
@@ -1735,7 +1752,7 @@ export default function SessionBoard() {
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="scoring-popover absolute mt-2 left-0 right-0 rounded-xl p-4 z-30 text-center"
+                        className="scoring-popover absolute mt-1 left-4 right-4 rounded-xl p-4 z-30 text-center"
                       >
                         <button
                           onClick={() => {
@@ -1760,9 +1777,28 @@ export default function SessionBoard() {
                 </div>
               )}
               {session.type === 'Nacional' && selectedParentCountry && (
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm">{t.board.hostCountryLabel}: {selectedParentCountry.flag} {selectedParentCountry.name}</span>
-                  <button onClick={() => { setSelectedParentCountry(null); setCities([]); }} className="text-xs text-app-muted/70 hover:text-app-text" title={t.board.changeHostCountry} aria-label={t.board.changeHostCountry}>✕</button>
+                <div className="flex items-center justify-between gap-3 mb-3 p-3 rounded-xl border border-app-border bg-app-card/40">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-app-accent/15 text-lg">
+                      {selectedParentCountry.flag}
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-app-muted/75">
+                        {currentLanguage === 'en' ? 'Active Host Country' : 'País Sede Activo'}
+                      </p>
+                      <p className="text-sm font-semibold text-app-text mt-0.5">
+                        {selectedParentCountry.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setSelectedParentCountry(null); setCities([]); }} 
+                    className="flex items-center justify-center w-7 h-7 rounded-lg border border-app-border bg-app-card hover:bg-app-danger/10 hover:text-app-danger transition-colors text-xs text-app-muted/80" 
+                    title={t.board.changeHostCountry} 
+                    aria-label={t.board.changeHostCountry}
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
               {(session.type === 'Global' || (session.type === 'Nacional' && selectedParentCountry)) && (
