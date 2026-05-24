@@ -269,12 +269,13 @@ export default function SessionBoard() {
   }, [theme, t]);
 
   useEffect(() => {
-    if (controlHost && controlHost !== lastControlHost) {
+    const currentControlHost = session?.controlHost || session?.host || '';
+    if (currentControlHost && currentControlHost !== lastControlHost) {
       setIsTransferredNoticeDismissed(false);
       setIsReclaimNoticeDismissed(false);
-      setLastControlHost(controlHost);
+      setLastControlHost(currentControlHost);
     }
-  }, [controlHost, lastControlHost]);
+  }, [session?.controlHost, session?.host, lastControlHost]);
 
   // Load countries
   useEffect(() => {
