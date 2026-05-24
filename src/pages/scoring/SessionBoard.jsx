@@ -2279,7 +2279,7 @@ export default function SessionBoard() {
               <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-4">
                 {isTotalScoring ? (
                   // Aggregate Mode Rankings (Results So Far)
-                  globalResults.length === 0 ? (
+                  completedPhaseIndexes.length === 0 ? (
                     <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
                   ) : (
                     <div className="space-y-2">
