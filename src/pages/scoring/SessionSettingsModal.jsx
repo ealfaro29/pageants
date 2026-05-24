@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Settings2, Save, X, UserRoundMinus, UserRoundCheck, ShieldX } from 'lucide-react';
+import { Settings2, Save, X, UserRoundMinus, UserRoundCheck, ShieldX, Crown } from 'lucide-react';
 import { scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent } from './scoringTheme';
 
@@ -11,13 +11,15 @@ export default function SessionSettingsModal({
   onRenameSession,
   onExpelJudge,
   onApproveJudge,
-  onRejectJudge
+  onRejectJudge,
+  onTransferHost
 }) {
   const normalizeJudgeIdentity = value => String(value || '').trim().toLowerCase();
   const [sessionName, setSessionName] = useState(session?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
   const [expellingJudge, setExpellingJudge] = useState('');
   const [processingPendingJudge, setProcessingPendingJudge] = useState('');
+  const [transferringHost, setTransferringHost] = useState('');
   const [accentColor] = useState(getStoredScoringAccent());
   const t = scoringCopy[language] || scoringCopy.es;
   const settingsCopy = t.board.settings;
@@ -38,6 +40,7 @@ export default function SessionSettingsModal({
       setIsSavingName(false);
       setExpellingJudge('');
       setProcessingPendingJudge('');
+      setTransferringHost('');
     }
   }, [isOpen, session?.name]);
 
@@ -83,6 +86,17 @@ export default function SessionSettingsModal({
       await onRejectJudge(judge);
     } finally {
       setProcessingPendingJudge('');
+    }
+  };
+
+  const handleTransferHost = async (judge) => {
+    if (!judge || transferringHost) return;
+    setTransferringHost(judge);
+    try {
+      await onTransferHost(judge);
+      onClose();
+    } finally {
+      setTransferringHost('');
     }
   };
 
@@ -200,15 +214,26 @@ export default function SessionSettingsModal({
                 {guestJudges.map(judge => (
                   <div key={judge} className="flex items-center justify-between gap-3 px-4 py-4">
                     <p className="text-sm font-medium text-app-text">{judge}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleExpelJudge(judge)}
-                      disabled={expellingJudge === judge}
-                      className="scoring-btn-danger h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
-                    >
-                      <UserRoundMinus className="w-4 h-4" />
-                      {settingsCopy.expelJudge}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTransferHost(judge)}
+                        disabled={transferringHost === judge}
+                        className="scoring-btn-secondary h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                      >
+                        <Crown className="w-4 h-4 text-app-accent" />
+                        {settingsCopy.transferHost}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExpelJudge(judge)}
+                        disabled={expellingJudge === judge}
+                        className="scoring-btn-danger h-10 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                      >
+                        <UserRoundMinus className="w-4 h-4" />
+                        {settingsCopy.expelJudge}
+                      </button>
+                    </div>
                   </div>
                 ))}
 

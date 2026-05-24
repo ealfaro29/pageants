@@ -315,6 +315,7 @@ export const scoringCopy = {
         hostBadge: 'Host',
         noGuestJudges: 'No hay jueces adicionales todavía.',
         expelJudge: 'Expulsar juez',
+        transferHost: 'Transferir Host',
         close: 'Cerrar ajustes'
       }
     },
@@ -620,6 +621,7 @@ export const scoringCopy = {
         hostBadge: 'Host',
         noGuestJudges: 'There are no additional judges yet.',
         expelJudge: 'Remove judge',
+        transferHost: 'Transfer Host',
         close: 'Close settings'
       }
     },

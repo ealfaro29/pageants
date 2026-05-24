@@ -874,6 +874,15 @@ export default function SessionBoard() {
     setHostAppearsInactive(false);
   };
 
+  const transferHostControlsToJudge = async (targetJudge) => {
+    if (!sessionId || !session || !targetJudge) return;
+    const now = Date.now();
+    await updateDoc(doc(db, "sessions", sessionId), {
+      controlHost: targetJudge,
+      controlHostAssignedAt: now
+    });
+  };
+
   const getNextPhasesWithUpdate = (phaseIndex, updater) => {
     const nextPhases = [...phases];
     while (nextPhases.length <= phaseIndex) {
@@ -2463,6 +2472,7 @@ export default function SessionBoard() {
         onExpelJudge={expelJudge}
         onApproveJudge={approveJudge}
         onRejectJudge={rejectJudge}
+        onTransferHost={transferHostControlsToJudge}
       />
     </div>
   );
