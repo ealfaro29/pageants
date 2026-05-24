@@ -115,6 +115,10 @@ function judgeListIncludes(list, judgeName) {
   return Array.isArray(list) && list.some(entry => normalizeJudgeIdentity(entry) === normalizedJudge);
 }
 
+function isSameJudge(left, right) {
+  return normalizeJudgeIdentity(left) === normalizeJudgeIdentity(right);
+}
+
 function getJudgeSubmissionKey(judgeName) {
   return normalizeJudgeIdentity(judgeName).replace(/[^a-z0-9_-]/g, '_');
 }
@@ -130,7 +134,18 @@ function getVotingJudges(sessionData) {
 function getFirstBackupJudge(sessionData) {
   const hostName = sessionData?.host;
   const judges = getVotingJudges(sessionData);
-  return judges.find(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(hostName)) || null;
+  return judges.find(judge => !isSameJudge(judge, hostName)) || null;
+}
+
+function getValidTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
+}
+
+function getHostPresenceFallback(sessionData) {
+  return getValidTimestamp(sessionData?.hostLastSeenAt)
+    || getValidTimestamp(sessionData?.createdAt)
+    || Date.now();
 }
 
 function getParticipantScoreStatsByPhases(participantId, phaseIndexes, scoreMap) {
@@ -356,7 +371,7 @@ export default function SessionBoard() {
       if (!snap.exists()) return;
 
       const nextSession = snap.data();
-      const isHostJudge = nextSession.host === judgeName;
+      const isHostJudge = isSameJudge(nextSession.host, judgeName);
       const isRemovedJudge = !isHostJudge && judgeListIncludes(nextSession.removedJudges, judgeName);
       const isApprovedJudge = judgeListIncludes(nextSession.judges, judgeName);
       const isPendingJudge = judgeListIncludes(nextSession.pendingJudges, judgeName);
@@ -382,7 +397,7 @@ export default function SessionBoard() {
   }, [sessionId, judgeName, navigate]);
 
   useEffect(() => {
-    if (!sessionId || !session?.host || session.host !== judgeName) return;
+    if (!sessionId || !session?.host || !isSameJudge(session.host, judgeName)) return;
     const pingHostPresence = () => {
       if (document.visibilityState === 'hidden') return;
       setDoc(doc(db, "sessions", sessionId, "presence", "host"), {
@@ -407,21 +422,23 @@ export default function SessionBoard() {
 
   useEffect(() => {
     if (!sessionId || !session) return;
-    if (judgeName === session.host) return;
+    if (isSameJudge(judgeName, session.host)) return;
     if (!judgeListIncludes(getVotingJudges(session), judgeName)) return;
 
     const currentControlHost = session.controlHost || session.host;
-    const hostIsCurrentController = normalizeJudgeIdentity(currentControlHost) === normalizeJudgeIdentity(session.host);
+    const hostIsCurrentController = isSameJudge(currentControlHost, session.host);
     if (!hostIsCurrentController) return;
 
     const firstBackupJudge = getFirstBackupJudge(session);
     if (!firstBackupJudge) return;
-    if (normalizeJudgeIdentity(firstBackupJudge) !== normalizeJudgeIdentity(judgeName)) return;
+    if (!isSameJudge(firstBackupJudge, judgeName)) return;
 
-    let latestHostSeenAt = Number(session.hostLastSeenAt || session.createdAt || Date.now());
+    let latestHostSeenAt = getHostPresenceFallback(session);
+    let hasPresenceSnapshot = false;
     let transferAttempted = false;
 
     const tryTransferHostControls = () => {
+      if (!hasPresenceSnapshot) return;
       if (transferAttempted) return;
       if (Date.now() - latestHostSeenAt < HOST_INACTIVE_THRESHOLD_MS) return;
 
@@ -435,11 +452,14 @@ export default function SessionBoard() {
     };
 
     const unsubscribePresence = onSnapshot(doc(db, "sessions", sessionId, "presence", "host"), snapshot => {
+      hasPresenceSnapshot = true;
       if (snapshot.exists()) {
-        const lastSeenAt = Number(snapshot.data()?.lastSeenAt);
-        if (Number.isFinite(lastSeenAt)) {
+        const lastSeenAt = getValidTimestamp(snapshot.data()?.lastSeenAt);
+        if (lastSeenAt) {
           latestHostSeenAt = lastSeenAt;
         }
+      } else {
+        latestHostSeenAt = getHostPresenceFallback(session);
       }
       tryTransferHostControls();
     }, () => {});
@@ -832,7 +852,7 @@ export default function SessionBoard() {
   };
 
   const reclaimHostControls = async () => {
-    if (!session?.host || judgeName !== session.host) return;
+    if (!session?.host || !isSameJudge(judgeName, session.host)) return;
     const now = Date.now();
     await setDoc(doc(db, "sessions", sessionId, "presence", "host"), {
       host: session.host,
@@ -840,8 +860,7 @@ export default function SessionBoard() {
     }, { merge: true });
     await updateDoc(doc(db, "sessions", session.id), {
       controlHost: session.host,
-      controlHostAssignedAt: now,
-      hostLastSeenAt: now
+      controlHostAssignedAt: now
     });
   };
 
@@ -1128,8 +1147,8 @@ export default function SessionBoard() {
   );
 
   const controlHost = session.controlHost || session.host;
-  const isHost = normalizeJudgeIdentity(controlHost) === normalizeJudgeIdentity(judgeName);
-  const isOriginalHost = normalizeJudgeIdentity(session.host) === normalizeJudgeIdentity(judgeName);
+  const isHost = isSameJudge(controlHost, judgeName);
+  const isOriginalHost = isSameJudge(session.host, judgeName);
   const isJudgeRemoved = !isHost && !isOriginalHost && judgeListIncludes(session.removedJudges, judgeName);
   const allParticipants = session.participants || [];
   const judges = getVotingJudges(session);
@@ -1242,11 +1261,6 @@ export default function SessionBoard() {
     }))
   ];
 
-  // Calculate who is actually making the cut based on scores, not alphabetical order
-  const rankedForCutoff = rankParticipantsByPhaseScores(currentParticipants, phaseScores);
-  const cutoffLimit = currentPhase.cutoff || rankedForCutoff.length;
-  const qualifiedIds = new Set(rankedForCutoff.slice(0, cutoffLimit).map(p => p.id));
-
   // Check completion for advance button
   const hasNonHostJudges = judges.some(judge => normalizeJudgeIdentity(judge) !== normalizeJudgeIdentity(session.host));
   const judgeHasSubmittedPhase = (judge) => {
@@ -1263,9 +1277,7 @@ export default function SessionBoard() {
   const isFinalRound = currentPhase.cutoff === 1;
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
   const hostVotingDisabledForCurrentUser = session.hostCanVote === false && isOriginalHost;
-  const shouldHideCutInsightsForJudge = !isHost && !isSessionComplete && currentPhase.status === 'active';
-  const shouldShowCutPreview = !shouldHideCutInsightsForJudge;
-  const hasTransferredControls = normalizeJudgeIdentity(controlHost) !== normalizeJudgeIdentity(session.host);
+  const hasTransferredControls = !isSameJudge(controlHost, session.host);
   const showTransferredControlsNotice = isHost && hasTransferredControls;
   const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
   const completedPhaseIndexes = phases
@@ -1944,24 +1956,23 @@ export default function SessionBoard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-app-border/50">
-                      {tableParticipants.map((p, idx) => {
-                        const isAbsent = Boolean(p.isAbsent);
-                        const hasScore = p.myScore !== undefined && p.myScore !== null;
-                        const isQualified = shouldShowCutPreview ? qualifiedIds.has(p.id) : true;
-                        const scoreInputValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '');
-                        const sliderValue = scoreInputValue === '' ? '0' : scoreInputValue;
+	                      {tableParticipants.map((p, idx) => {
+	                        const isAbsent = Boolean(p.isAbsent);
+	                        const hasScore = p.myScore !== undefined && p.myScore !== null;
+	                        const scoreInputValue = scoreDrafts[p.id] ?? (hasScore ? String(p.myScore) : '');
+	                        const sliderValue = scoreInputValue === '' ? '0' : scoreInputValue;
 
-                        return (
-                          <tr key={p.id} className={`transition-all duration-300 ${shouldShowCutPreview && !isQualified ? 'opacity-40 grayscale-[50%]' : 'hover:bg-app-border/30'}`} style={shouldShowCutPreview && !isQualified ? { backgroundColor: 'var(--color-app-danger-soft)' } : undefined}>
-                            <td className="py-2 md:py-4 pl-2 md:pl-4 pr-1 md:pr-2 text-center">
-                              <span className={`text-[10px] md:text-xs font-mono font-bold ${idx === 0 ? 'text-app-accent' : isQualified ? 'text-app-text' : 'text-app-muted/50'}`}>{idx + 1}</span>
-                            </td>
-                            <td className="py-1.5 md:py-3 px-2">
-                              <div className="flex items-center gap-1.5 md:gap-2">
-                                <span className="text-lg md:text-xl">{p.flag}</span>
-                                <span className={`text-xs md:text-sm font-medium truncate ${isQualified ? 'text-app-text' : 'text-app-muted/70'}`}>{p.name}</span>
-                              </div>
-                            </td>
+	                        return (
+	                          <tr key={p.id} className="transition-all duration-300 hover:bg-app-border/30">
+	                            <td className="py-2 md:py-4 pl-2 md:pl-4 pr-1 md:pr-2 text-center">
+	                              <span className={`text-[10px] md:text-xs font-mono font-bold ${idx === 0 ? 'text-app-accent' : 'text-app-text'}`}>{idx + 1}</span>
+	                            </td>
+	                            <td className="py-1.5 md:py-3 px-2">
+	                              <div className="flex items-center gap-1.5 md:gap-2">
+	                                <span className="text-lg md:text-xl">{p.flag}</span>
+	                                <span className="text-xs md:text-sm font-medium truncate text-app-text">{p.name}</span>
+	                              </div>
+	                            </td>
                             <td className="py-1.5 md:py-3 px-1.5 md:px-3 bg-app-border/10 border-x border-app-border/20 text-center">
                               {isAbsent ? (
                                 <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-widest text-amber-300">
