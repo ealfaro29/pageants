@@ -230,6 +230,10 @@ export default function SessionBoard() {
   const [cutoffModalError, setCutoffModalError] = useState('');
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false);
   const [hostAppearsInactive, setHostAppearsInactive] = useState(false);
+  const [lastControlHost, setLastControlHost] = useState('');
+  const [isTransferredNoticeDismissed, setIsTransferredNoticeDismissed] = useState(false);
+  const [isReclaimNoticeDismissed, setIsReclaimNoticeDismissed] = useState(false);
+  const [isPostTransferModalOpen, setIsPostTransferModalOpen] = useState(false);
 
   // Search state
   const [countries, setCountries] = useState([]);
@@ -263,6 +267,14 @@ export default function SessionBoard() {
     document.body.style.background = getScoringBodyBackground(theme);
     document.title = t.appTitle;
   }, [theme, t]);
+
+  useEffect(() => {
+    if (controlHost && controlHost !== lastControlHost) {
+      setIsTransferredNoticeDismissed(false);
+      setIsReclaimNoticeDismissed(false);
+      setLastControlHost(controlHost);
+    }
+  }, [controlHost, lastControlHost]);
 
   // Load countries
   useEffect(() => {
@@ -881,6 +893,7 @@ export default function SessionBoard() {
       controlHost: targetJudge,
       controlHostAssignedAt: now
     });
+    setIsPostTransferModalOpen(true);
   };
 
   const getNextPhasesWithUpdate = (phaseIndex, updater) => {
@@ -1297,8 +1310,8 @@ export default function SessionBoard() {
   const isSessionComplete = session.status === 'completed' && Boolean(session.winnerId);
   const hostVotingDisabledForCurrentUser = session.hostCanVote === false && isOriginalHost;
   const hasTransferredControls = !isSameJudge(controlHost, session.host);
-  const showTransferredControlsNotice = isHost && hasTransferredControls;
-  const showReclaimControlsNotice = isOriginalHost && hasTransferredControls;
+  const showTransferredControlsNotice = isHost && hasTransferredControls && !isTransferredNoticeDismissed;
+  const showReclaimControlsNotice = isOriginalHost && hasTransferredControls && !isReclaimNoticeDismissed;
   const firstBackupJudge = getFirstBackupJudge(session);
   const isFirstBackupJudge = firstBackupJudge && isSameJudge(firstBackupJudge, judgeName);
   const showTakeoverControlsNotice = isFirstBackupJudge && hostAppearsInactive && !hasTransferredControls;
@@ -1545,30 +1558,60 @@ export default function SessionBoard() {
 
       {showTransferredControlsNotice && (
         <div className="px-3 sm:px-4 pt-3">
-          <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3">
-            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-cyan-200">
-              {t.board.controlsTransferredNotice(controlHost)}
-            </p>
-            <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
+          <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3 flex items-start justify-between gap-4 animate-fadeIn">
+            <div className="flex-1">
+              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-cyan-200">
+                {isSameJudge(controlHost, judgeName) 
+                  ? (currentLanguage === 'en' ? 'You have received host controls!' : '¡Has recibido los controles del host!')
+                  : t.board.controlsTransferredNotice(controlHost)
+                }
+              </p>
+              <p className="text-sm text-app-text mt-1">
+                {isSameJudge(controlHost, judgeName) 
+                  ? (currentLanguage === 'en' ? 'The previous host has manually assigned you as the Host of this session. You can now manage the pageant.' : 'El anfitrión anterior te ha asignado como el Host de esta sesión. Ahora puedes administrar el concurso.')
+                  : t.board.controlsTransferredPrompt
+                }
+              </p>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setIsTransferredNoticeDismissed(true)} 
+              className="text-cyan-300/60 hover:text-cyan-200 transition-colors text-sm p-1 leading-none"
+              title={currentLanguage === 'en' ? 'Dismiss' : 'Descartar'}
+              aria-label={currentLanguage === 'en' ? 'Dismiss' : 'Descartar'}
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
 
       {showReclaimControlsNotice && (
         <div className="px-3 sm:px-4 pt-3">
-          <div className="rounded-xl border border-app-accent/35 bg-app-accent/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-app-accent">
-                {t.board.controlsTransferredNotice(controlHost)}
-              </p>
-              <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
+          <div className="rounded-xl border border-app-accent/35 bg-app-accent/10 px-4 py-3 flex items-start justify-between gap-4 animate-fadeIn">
+            <div className="flex-1 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em] text-app-accent">
+                  {t.board.controlsTransferredNotice(controlHost)}
+                </p>
+                <p className="text-sm text-app-text mt-1">{t.board.controlsTransferredPrompt}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => reclaimHostControls().catch(() => {})}
+                className="scoring-btn-primary rounded-lg h-10 px-4 text-xs font-bold uppercase tracking-widest"
+              >
+                {t.board.reclaimHostControls}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => reclaimHostControls().catch(() => {})}
-              className="scoring-btn-primary rounded-lg h-10 px-4 text-xs font-bold uppercase tracking-widest"
+            <button 
+              type="button" 
+              onClick={() => setIsReclaimNoticeDismissed(true)} 
+              className="text-app-accent/60 hover:text-app-accent transition-colors text-sm p-1 leading-none mt-1"
+              title={currentLanguage === 'en' ? 'Dismiss' : 'Descartar'}
+              aria-label={currentLanguage === 'en' ? 'Dismiss' : 'Descartar'}
             >
-              {t.board.reclaimHostControls}
+              ✕
             </button>
           </div>
         </div>
@@ -2541,6 +2584,54 @@ export default function SessionBoard() {
         onRejectJudge={rejectJudge}
         onTransferHost={transferHostControlsToJudge}
       />
+
+      {isPostTransferModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="scoring-panel rounded-2xl max-w-md w-full p-6 border border-app-accent/30 bg-app-card shadow-2xl animate-scaleUp">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-app-accent/15 flex items-center justify-center text-app-accent">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-app-text">
+                  {currentLanguage === 'en' ? 'Host Controls Transferred' : 'Controles de Host Transferidos'}
+                </h3>
+                <p className="text-xs text-app-muted/70 mt-0.5">
+                  {currentLanguage === 'en' ? 'What would you like to do next?' : '¿Qué deseas hacer ahora?'}
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-app-muted/90 mb-6 leading-relaxed">
+              {currentLanguage === 'en' 
+                ? 'You have successfully transferred host controls. You can choose to continue participating in this session as a scoring judge, or leave the session entirely.' 
+                : 'Has transferido exitosamente los controles del host. Puedes elegir continuar participando en esta sesión como un juez de votación, o salir de la sesión por completo.'}
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('judgeName');
+                  navigate('/');
+                }}
+                className="scoring-btn-danger h-11 px-5 rounded-lg text-xs font-bold uppercase tracking-widest inline-flex items-center justify-center gap-2 order-2 sm:order-1"
+              >
+                <LogOut className="w-4 h-4" />
+                {currentLanguage === 'en' ? 'Leave Session' : 'Salir de la Sesión'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPostTransferModalOpen(false)}
+                className="scoring-btn-primary h-11 px-5 rounded-lg text-xs font-bold uppercase tracking-widest inline-flex items-center justify-center gap-2 order-1 sm:order-2"
+              >
+                <UserCheck className="w-4 h-4" />
+                {currentLanguage === 'en' ? 'Continue as Judge' : 'Continuar como Juez'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
