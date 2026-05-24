@@ -2222,41 +2222,72 @@ export default function SessionBoard() {
         {/* RIGHT PANEL: RESULTADOS GLOBALES (CARD) - 40% */}
         <div className={`${activeTab !== 'results' ? 'hidden lg:flex' : 'flex'} lg:w-[34%] xl:w-[32%] flex flex-col overflow-hidden shrink-0 bg-app-card rounded-2xl shadow-xl border border-app-border`}>
           <div className="px-6 py-5 border-b border-app-border/50 bg-app-card shrink-0">
-            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">{t.board.lastSubmittedResultsTitle}</h3>
-            <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(isPhaseResultPublished).length)}</p>
+            <h3 className="text-xs font-bold tracking-widest text-app-muted/70 uppercase">
+              {isTotalScoring ? t.board.aggregateRankingsTitle : t.board.lastPhaseResultsTitle}
+            </h3>
             <p className="text-[10px] text-app-muted/50 mt-1">
-              {t.board.scoringModeLabel}: {isTotalScoring ? t.board.scoringModeTotal : t.board.scoringModePhase}
+              {isTotalScoring ? t.board.aggregateRankingsSubtitle : t.board.lastPhaseResultsSubtitle}
             </p>
+            <p className="text-[10px] text-app-muted/30 mt-1">{t.board.phasesCompleted(allParticipants.length, phases.filter(isPhaseResultPublished).length)}</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
               <div className="rounded-xl border border-app-border/70 bg-app-card/40 px-4 py-4">
-                {lastCompletedPhase ? (
-                  <p className="text-xs text-app-muted/80 mb-3">
-                    {t.board.submittedPhaseLabel}: {lastCompletedPhase.name}
-                  </p>
-                ) : null}
-                {lastSubmittedResults.length === 0 ? (
-                  <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {lastSubmittedResults.map((participant, idx) => {
-                      const isQualified = lastSubmittedQualifiedIds.has(participant.id);
-                      return (
-                        <div
-                          key={`last-submitted-${participant.id}`}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isQualified ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
-                        >
-                          <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
-                          <span className="text-lg">{participant.flag}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm truncate ${isQualified ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
+                {isTotalScoring ? (
+                  // Aggregate Mode Rankings (Results So Far)
+                  globalResults.length === 0 ? (
+                    <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {globalResults.map((participant, idx) => {
+                        const score = participant.aggregateTotal || 0;
+                        return (
+                          <div
+                            key={`aggregate-rank-${participant.id}`}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg ${participant.isCurrentlyActive ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
+                          >
+                            <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
+                            <span className="text-lg">{participant.flag}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm truncate ${participant.isCurrentlyActive ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
+                            </div>
+                            <p className="text-sm font-mono font-bold text-app-text">{score.toFixed(2)}</p>
                           </div>
-                          <p className="text-sm font-mono font-bold text-app-text">{participant.avg.toFixed(2)}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  // By Phase Mode Rankings
+                  <>
+                    {lastCompletedPhase ? (
+                      <p className="text-xs text-app-muted/80 mb-3">
+                        {t.board.submittedPhaseLabel}: {lastCompletedPhase.name}
+                      </p>
+                    ) : null}
+                    {lastSubmittedResults.length === 0 ? (
+                      <p className="text-sm text-app-muted/70">{t.board.lastSubmittedResultsEmpty}</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {lastSubmittedResults.map((participant, idx) => {
+                          const isQualified = lastSubmittedQualifiedIds.has(participant.id);
+                          return (
+                            <div
+                              key={`last-submitted-${participant.id}`}
+                              className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isQualified ? 'bg-app-card/55' : 'bg-app-danger/10 opacity-70'}`}
+                            >
+                              <div className="w-5 text-center text-xs font-mono font-bold text-app-muted/80">{idx + 1}</div>
+                              <span className="text-lg">{participant.flag}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm truncate ${isQualified ? 'text-app-text' : 'text-app-muted/80 line-through'}`}>{participant.name}</p>
+                              </div>
+                              <p className="text-sm font-mono font-bold text-app-text">{participant.avg.toFixed(2)}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
