@@ -144,6 +144,7 @@ function getValidTimestamp(value) {
 
 function getHostPresenceFallback(sessionData) {
   return getValidTimestamp(sessionData?.hostLastSeenAt)
+    || getValidTimestamp(sessionData?.controlHostAssignedAt)
     || getValidTimestamp(sessionData?.createdAt)
     || Date.now();
 }
@@ -453,13 +454,16 @@ export default function SessionBoard() {
 
     const unsubscribePresence = onSnapshot(doc(db, "sessions", sessionId, "presence", "host"), snapshot => {
       hasPresenceSnapshot = true;
+      const fallback = getValidTimestamp(session?.controlHostAssignedAt) || getValidTimestamp(session?.hostLastSeenAt) || 0;
       if (snapshot.exists()) {
         const lastSeenAt = getValidTimestamp(snapshot.data()?.lastSeenAt);
         if (lastSeenAt) {
-          latestHostSeenAt = lastSeenAt;
+          latestHostSeenAt = Math.max(lastSeenAt, fallback);
+        } else {
+          latestHostSeenAt = fallback || getHostPresenceFallback(session);
         }
       } else {
-        latestHostSeenAt = getHostPresenceFallback(session);
+        latestHostSeenAt = fallback || getHostPresenceFallback(session);
       }
       tryTransferHostControls();
     }, () => {});
@@ -860,7 +864,8 @@ export default function SessionBoard() {
     }, { merge: true });
     await updateDoc(doc(db, "sessions", session.id), {
       controlHost: session.host,
-      controlHostAssignedAt: now
+      controlHostAssignedAt: now,
+      hostLastSeenAt: now
     });
   };
 
