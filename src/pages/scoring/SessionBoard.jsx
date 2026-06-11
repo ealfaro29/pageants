@@ -5,7 +5,6 @@ import { db } from '../../core/firebase-config.js';
 import { deleteDoc, doc, getDoc, onSnapshot, setDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { Copy, Check, Search, Plus, X, ChevronRight, Globe, MapPin, AlertTriangle, Crown, BarChart3, Sun, Moon, RotateCcw, Settings2, LogOut, ClipboardList, Trophy, Settings, UserCheck, UserX, ExternalLink, Link2 } from 'lucide-react';
 import {
-  getCountryDisplayName,
   getDefaultPhaseName,
   getSessionTypeLabel,
   getStoredScoringLanguage,
@@ -25,6 +24,7 @@ import {
 import { buildNumberedParticipant } from './participantUtils';
 import { isTotalScoringMode } from './scoringMode';
 import { parseParticipantsFromBulkList } from './bulkParticipantParser';
+import { getCountries } from './countries';
 
 function normalizeUpperLabel(value) {
   return String(value || '')
@@ -279,19 +279,7 @@ export default function SessionBoard() {
 
   // Load countries
   useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=name,translations,cca3,flag')
-      .then(r => r.json())
-      .then(data => {
-        setCountries(
-          data.map(c => ({
-            name: getCountryDisplayName(c, currentLanguage),
-            apiName: c.name?.common || '',
-            flag: c.flag || '',
-            id: c.cca3 || Math.random().toString()
-          }))
-          .filter(c => c.name).sort((a, b) => a.name.localeCompare(b.name))
-        );
-      }).catch(() => {});
+    setCountries(getCountries(currentLanguage));
   }, [currentLanguage]);
 
   // Load cities for Nacional

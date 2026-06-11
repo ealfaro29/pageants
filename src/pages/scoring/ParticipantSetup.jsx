@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Search, Plus, X, Globe, MapPin, Loader2 } from 'lucide-react';
-import { getCountryDisplayName, normalizeScoringLanguage, scoringCopy } from './scoringI18n';
+import { normalizeScoringLanguage, scoringCopy } from './scoringI18n';
 import { getScoringThemeStyleVars, getStoredScoringAccent, getStoredScoringTheme } from './scoringTheme';
 import { buildNumberedParticipant } from './participantUtils';
+import { getCountries } from './countries';
 
 export default function ParticipantSetup({ session }) {
   const [theme] = useState(getStoredScoringTheme());
@@ -41,20 +42,7 @@ export default function ParticipantSetup({ session }) {
   }, []);
 
   useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=name,translations,cca3,flag')
-      .then(res => res.json())
-      .then(data => {
-        const parsed = data.map(c => ({
-          name: getCountryDisplayName(c, language),
-          apiName: c.name?.common || '',
-          flag: c.flag || '',
-          id: c.cca3 || Math.random().toString()
-        }))
-        .filter(c => c.name)
-        .sort((a,b) => a.name.localeCompare(b.name));
-        setCountries(parsed);
-      })
-      .catch(err => console.error("Error fetching countries", err));
+    setCountries(getCountries(language));
   }, [language]);
 
   useEffect(() => {
