@@ -22,7 +22,7 @@ export default function MusicCard({ code, isFavorite, onToggleFavorite, isAdmin,
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
-        onContextMenu(e, { id: code.id, type: 'music', isHidden });
+        onContextMenu(e, { id: code.id, type: 'music', isHidden, name: code.title });
     };
 
     const handleCopy = (e) => {

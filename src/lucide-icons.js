@@ -18,6 +18,7 @@ export { default as Eye } from 'lucide-react/dist/esm/icons/eye.js';
 export { default as EyeOff } from 'lucide-react/dist/esm/icons/eye-off.js';
 export { default as Filter } from 'lucide-react/dist/esm/icons/funnel.js';
 export { default as Globe } from 'lucide-react/dist/esm/icons/globe.js';
+export { default as Hash } from 'lucide-react/dist/esm/icons/hash.js';
 export { default as Heart } from 'lucide-react/dist/esm/icons/heart.js';
 export { default as House } from 'lucide-react/dist/esm/icons/house.js';
 export { default as ImageIcon } from 'lucide-react/dist/esm/icons/image.js';

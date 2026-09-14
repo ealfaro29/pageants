@@ -2,7 +2,7 @@
 // Extracted from legacy data-loader.js
 
 import { auth, db } from '../core/firebase-config.js';
-import { collection, getDocs, updateDoc, doc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, writeBatch, deleteDoc } from "firebase/firestore";
 import { getIsoCode, ISO_MAP } from './iso-utils.js';
 import { cleanRobloxAssetId } from './roblox-thumbnails.js';
 
@@ -302,8 +302,11 @@ export async function toggleItemVisibility(type, docId, hidden) {
 
     const collectionMap = {
         'texture': 'textures',
+        'textures': 'textures',
         'facebase': 'facebases',
-        'avatar': 'avatar'
+        'facebases': 'facebases',
+        'avatar': 'avatar',
+        'music': 'music'
     };
     const collectionName = collectionMap[type] || type;
 
@@ -319,6 +322,75 @@ export async function toggleItemVisibility(type, docId, hidden) {
         console.error(`DB_UPDATE: ❌ Error toggling visibility for ${collectionName}/${docId}:`, error);
         throw error;
     }
+}
+
+/**
+ * Permanently deletes a single item from Firestore.
+ * @param {string} type - 'texture'/'textures', 'facebase'/'facebases', 'avatar', 'music'
+ * @param {string} docId - The Firestore document ID
+ */
+export async function deleteCatalogItem(type, docId) {
+    if (!type || !docId) throw new Error('Missing type or docId');
+
+    const collectionMap = {
+        'texture': 'textures',
+        'textures': 'textures',
+        'facebase': 'facebases',
+        'facebases': 'facebases',
+        'avatar': 'avatar',
+        'music': 'music'
+    };
+    const collectionName = collectionMap[type] || type;
+
+    try {
+        const itemRef = doc(db, collectionName, docId);
+        console.log(`DB_DELETE: Permanently deleting ${collectionName}/${docId}...`);
+        await deleteDoc(itemRef);
+        console.log(`DB_DELETE: ✅ Successfully deleted ${collectionName}/${docId}.`);
+    } catch (error) {
+        console.error(`DB_DELETE: ❌ Error deleting ${collectionName}/${docId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Permanently deletes multiple items from Firestore in batches.
+ * @param {Array<{id: string, type: string}>} items
+ * @returns {Promise<number>} count of deleted items
+ */
+export async function deleteCatalogItems(items) {
+    if (!Array.isArray(items) || items.length === 0) return 0;
+
+    const collectionMap = {
+        'texture': 'textures',
+        'textures': 'textures',
+        'facebase': 'facebases',
+        'facebases': 'facebases',
+        'avatar': 'avatar',
+        'music': 'music'
+    };
+
+    const BATCH_SIZE = 400; // Under Firestore 500 limit
+    let deletedCount = 0;
+
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const chunk = items.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+
+        chunk.forEach(item => {
+            const col = collectionMap[item.type] || item.type;
+            if (col && item.id) {
+                batch.delete(doc(db, col, item.id));
+                deletedCount++;
+            }
+        });
+
+        console.log(`DB_BATCH_DELETE: Deleting batch of ${chunk.length} items...`);
+        await batch.commit();
+    }
+
+    console.log(`DB_BATCH_DELETE: ✅ Successfully deleted total of ${deletedCount} items.`);
+    return deletedCount;
 }
 /**
  * Decouples Facebases by ensuring every document has a unique name+country combination.

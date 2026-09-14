@@ -34,6 +34,8 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
             id: activeVariant.id, 
             type: 'facebase', 
             isHidden,
+            name: activeVariant.displayName || group.baseDisplayName,
+            groupVariants: variantsList,
             onEdit: () => setIsEditing(true)
         });
     };

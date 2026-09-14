@@ -9,7 +9,7 @@ import CatalogImage from './CatalogImage.jsx';
  * GroupCard — Displays a user-created group.
  * Features a stacked visual to indicate multiple items.
  */
-export default function GroupCard({ group, allItems, onDelete, isFavorite, onToggleFavorite, isFacebaseTab, isAdmin, onContextMenu }) {
+export default function GroupCard({ group, allItems, onDelete, isFavorite, onToggleFavorite, isFacebaseTab, isAdmin, hideCodes = false, onContextMenu }) {
     const [copied, setCopied] = useState(false);
     const [showVariants, setShowVariants] = useState(false);
     const [reloading, setReloading] = useState(false);
@@ -39,7 +39,7 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
-        onContextMenu(e, { id: activeVariant.id, type: activeVariant.type, isHidden });
+        onContextMenu(e, { id: activeVariant.id, type: activeVariant.type, isHidden, name: activeVariant.displayName });
     };
 
     const handleCycle = (e) => {
@@ -228,25 +228,27 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
                 </AnimatePresence>
 
                 {/* Footer with Code Input and Copy Action */}
-                <div className="flex items-center gap-1.5 p-1 card-footer">
-                    <input
-                        readOnly
-                        type="text"
-                        value={activeVariant.codeId || ''}
-                        placeholder="…"
-                        className="flex-grow w-0 h-8 px-2 text-xs dark-input rounded-md main-code-id-input"
-                    />
-                    <button
-                        onClick={handleCopy}
-                        className={`copy-btn flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md border transition-all ${copied
-                            ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                            : 'bg-[var(--card-lighter)] text-[var(--ink)] border-[var(--border)] hover:bg-[var(--card-hover)]'
-                            }`}
-                        title="Copy Code"
-                    >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                </div>
+                {!hideCodes && (
+                    <div className="flex items-center gap-1.5 p-1 card-footer">
+                        <input
+                            readOnly
+                            type="text"
+                            value={activeVariant.codeId || ''}
+                            placeholder="…"
+                            className="flex-grow w-0 h-8 px-2 text-xs dark-input rounded-md main-code-id-input"
+                        />
+                        <button
+                            onClick={handleCopy}
+                            className={`copy-btn flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md border transition-all ${copied
+                                ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                : 'bg-[var(--card-lighter)] text-[var(--ink)] border-[var(--border)] hover:bg-[var(--card-hover)]'
+                                }`}
+                            title="Copy Code"
+                        >
+                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

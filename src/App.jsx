@@ -7,9 +7,9 @@ import Card from './components/Card';
 import TextureCard from './components/TextureCard';
 import FacebaseCard from './components/FacebaseCard';
 import MusicCard from './components/MusicCard';
-import { Search, Layers, CheckSquare, Square, X, Eye, EyeOff, Pencil, Filter as LucideFilter } from 'lucide-react';
+import { Search, Layers, CheckSquare, Square, X, Eye, EyeOff, Pencil, Filter as LucideFilter, Trash2, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeAllData, toggleItemVisibility } from './utils/data-hooks.js';
+import { initializeAllData, toggleItemVisibility, deleteCatalogItem, deleteCatalogItems } from './utils/data-hooks.js';
 import { useFavorites } from './hooks/useFavorites.js';
 import { useGroups } from './hooks/useGroups.js';
 import { groupTextureVariants } from './utils/texture-utils.js';
@@ -24,6 +24,7 @@ import UserManual from './pages/scoring/UserManual';
 import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
+import DeleteConfirmModal from './components/DeleteConfirmModal';
 import { useFavicon, FAVICONS } from './hooks/useFavicon';
 
 // Friendly names for texture category codes
@@ -73,6 +74,72 @@ function Dashboard({ user }) {
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, item: null });
+
+    // Texture codes visibility state (persisted in localStorage)
+    const [hideTextureCodes, setHideTextureCodes] = useState(() => {
+        try {
+            return localStorage.getItem('catalog_hide_texture_codes') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleHideTextureCodes = () => {
+        setHideTextureCodes(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem('catalog_hide_texture_codes', String(next));
+            } catch {}
+            return next;
+        });
+    };
+
+    // Delete Modal State
+    const [deleteModal, setDeleteModal] = useState({
+        isOpen: false,
+        item: null,
+        isBatch: false,
+        batchItems: []
+    });
+
+    const handleDeleteClick = (item) => {
+        closeContextMenu();
+        setDeleteModal({
+            isOpen: true,
+            item,
+            isBatch: false,
+            batchItems: []
+        });
+    };
+
+    const handleBatchDeleteClick = () => {
+        const itemsToDelete = Array.from(selectedItems).map(id => {
+            const found = allFlatItems.find(i => i.id === id);
+            return {
+                id,
+                type: found?.type || (activeTab === 'textures' ? 'texture' : activeTab === 'facebases' ? 'facebase' : activeTab),
+                name: found?.displayName || found?.title || id
+            };
+        });
+        setDeleteModal({
+            isOpen: true,
+            item: null,
+            isBatch: true,
+            batchItems: itemsToDelete
+        });
+    };
+
+    const handleConfirmDelete = async ({ mode, items }) => {
+        if (mode === 'single') {
+            await deleteCatalogItem(items[0].type, items[0].id);
+        } else {
+            await deleteCatalogItems(items);
+        }
+        if (selectionMode) {
+            cancelSelection();
+        }
+        await reloadData();
+    };
 
     const setActiveTab = (tab) => {
         if (!CATALOG_TABS.includes(tab)) return;
@@ -238,6 +305,7 @@ function Dashboard({ user }) {
                     onToggleFavorite={toggleFavorite}
                     isFacebaseTab={activeTab === 'facebases'}
                     isAdmin={!!user}
+                    hideCodes={activeTab === 'textures' && hideTextureCodes}
                     onContextMenu={handleContextMenu}
                 />
             ));
@@ -300,6 +368,7 @@ function Dashboard({ user }) {
                                 onToggleFavorite={toggleFavorite}
                                 isAdmin={!!user}
                                 showHidden={showHidden}
+                                hideCodes={hideTextureCodes}
                                 onRefresh={reloadData}
                                 onContextMenu={handleContextMenu}
                             />
@@ -531,6 +600,24 @@ function Dashboard({ user }) {
                                                 </button>
                                             )}
 
+                                            {/* Hide Texture Codes Toggle */}
+                                            {activeTab === 'textures' && (
+                                                <button
+                                                    onClick={() => {
+                                                        toggleHideTextureCodes();
+                                                        setIsFilterMenuOpen(false);
+                                                    }}
+                                                    className={`flex items-center gap-3 w-full p-3 rounded-xl border transition-all text-sm font-medium ${
+                                                        hideTextureCodes
+                                                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                                            : 'bg-zinc-800/30 text-zinc-400 border-zinc-800/50'
+                                                    }`}
+                                                >
+                                                    <Hash className="w-4 h-4" />
+                                                    <span>{hideTextureCodes ? 'Show Texture Codes' : 'Hide Texture Codes'}</span>
+                                                </button>
+                                            )}
+
                                             {/* Category Select */}
                                             {activeTab !== 'favorites' && (
                                                 <div className="space-y-2">
@@ -580,6 +667,22 @@ function Dashboard({ user }) {
                                 >
                                     <Layers className="w-4 h-4" />
                                     {selectionMode ? 'Cancel' : 'Group'}
+                                </button>
+                            )}
+
+                            {/* Hide Texture Codes Toggle */}
+                            {activeTab === 'textures' && (
+                                <button
+                                    onClick={toggleHideTextureCodes}
+                                    className={`flex-shrink-0 h-12 px-3 flex items-center gap-2 rounded-md border transition-all text-sm font-medium ${
+                                        hideTextureCodes
+                                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm'
+                                            : 'bg-[var(--card-light)] text-zinc-400 border-[var(--border)] hover:text-[var(--gold2)] hover:border-[var(--gold2)]/30'
+                                    }`}
+                                    title={hideTextureCodes ? 'Show texture codes' : 'Hide texture codes'}
+                                >
+                                    <Hash className="w-4 h-4" />
+                                    <span>{hideTextureCodes ? 'Show Codes' : 'Hide Codes'}</span>
                                 </button>
                             )}
 
@@ -682,6 +785,18 @@ function Dashboard({ user }) {
                                     {contextMenu.item.isHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                     <span>{contextMenu.item.isHidden ? 'Show Item' : 'Hide Item'}</span>
                                 </button>
+                                {user && (
+                                    <>
+                                        <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
+                                        <button
+                                            onClick={() => handleDeleteClick(contextMenu.item)}
+                                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/15 hover:text-red-300 rounded-md transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            <span>Delete Item</span>
+                                        </button>
+                                    </>
+                                )}
                                 <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
                                 <button
                                     onClick={closeContextMenu}
@@ -746,12 +861,34 @@ function Dashboard({ user }) {
                             </button>
                         )}
 
+                        {user && (
+                            <button
+                                onClick={handleBatchDeleteClick}
+                                disabled={selectedItems.size === 0}
+                                className="h-9 px-3.5 bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 text-sm font-semibold rounded-lg transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                title="Delete selected items permanently"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>Delete ({selectedItems.size})</span>
+                            </button>
+                        )}
+
                         <button onClick={cancelSelection} className="text-zinc-400 hover:text-white transition">
                             <X className="w-5 h-5" />
                         </button>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleConfirmDelete}
+                item={deleteModal.item}
+                isBatch={deleteModal.isBatch}
+                batchItems={deleteModal.batchItems}
+            />
         </>
     );
 }
