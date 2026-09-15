@@ -22,6 +22,8 @@ export default function MusicCard({ code, isFavorite, onToggleFavorite, isAdmin,
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
         onContextMenu(e, { 
             id: code.id, 
             type: 'music', 

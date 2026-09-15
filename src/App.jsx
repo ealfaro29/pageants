@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './core/firebase-config.js';
@@ -178,22 +179,50 @@ function Dashboard({ user }) {
     const handleContextMenu = (e, item) => {
         if (!user) return;
         e.preventDefault();
+        e.stopPropagation();
+
+        const MENU_WIDTH = 190;
+        const MENU_HEIGHT = 220;
+        const PADDING = 8;
+
+        let x = e.clientX + 2;
+        let y = e.clientY + 2;
+
+        if (x + MENU_WIDTH > window.innerWidth - PADDING) {
+            x = Math.max(PADDING, e.clientX - MENU_WIDTH - 2);
+        }
+        if (y + MENU_HEIGHT > window.innerHeight - PADDING) {
+            y = Math.max(PADDING, e.clientY - MENU_HEIGHT - 2);
+        }
+
         setContextMenu({
             visible: true,
-            x: e.clientX,
-            y: e.clientY,
+            x,
+            y,
             item
         });
     };
 
-    const closeContextMenu = () => setContextMenu({ ...contextMenu, visible: false });
+    const closeContextMenu = () => setContextMenu(prev => ({ ...prev, visible: false }));
 
-    // Close menu on click outside
+    // Close menu on click outside, scroll, resize or Escape
     useEffect(() => {
-        const handleGlobalClick = () => closeContextMenu();
-        window.addEventListener('click', handleGlobalClick);
-        return () => window.removeEventListener('click', handleGlobalClick);
-    }, [contextMenu]);
+        if (!contextMenu.visible) return;
+        const handleGlobalClose = () => closeContextMenu();
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') closeContextMenu();
+        };
+        window.addEventListener('click', handleGlobalClose);
+        window.addEventListener('scroll', handleGlobalClose, true);
+        window.addEventListener('resize', handleGlobalClose);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('click', handleGlobalClose);
+            window.removeEventListener('scroll', handleGlobalClose, true);
+            window.removeEventListener('resize', handleGlobalClose);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [contextMenu.visible]);
 
     const toggleSelection = (itemId) => {
         setSelectedItems(prev => {
@@ -776,71 +805,79 @@ function Dashboard({ user }) {
                     </div>
 
                     {/* Custom Context Menu */}
-                    <AnimatePresence>
-                        {contextMenu.visible && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.1 }}
-                                style={{ top: contextMenu.y, left: contextMenu.x }}
-                                className="fixed z-[9999] min-w-[160px] bg-[#1a1c24] border border-zinc-800 rounded-lg shadow-2xl p-1 overflow-hidden backdrop-blur-xl"
-                                onClick={e => e.stopPropagation()}
-                            >
-                                {user && (
-                                    <>
-                                        <button
-                                            onClick={() => {
-                                                if (contextMenu.item?.onEdit) {
-                                                    contextMenu.item.onEdit();
-                                                } else {
-                                                    handleEditItem(contextMenu.item);
-                                                }
-                                                closeContextMenu();
-                                            }}
-                                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-white rounded-md transition-colors"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                            <span>Edit Name</span>
-                                        </button>
-                                        <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
-                                    </>
-                                )}
-                                <button
-                                    onClick={async () => {
-                                        const { type, id, isHidden } = contextMenu.item;
-                                        await toggleItemVisibility(type, id, !isHidden);
-                                        closeContextMenu();
-                                        reloadData();
-                                    }}
-                                    className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-white rounded-md transition-colors"
+                    {createPortal(
+                        <AnimatePresence>
+                            {contextMenu.visible && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.1 }}
+                                    style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+                                    className="fixed z-[99999] min-w-[170px] bg-[#1a1c24] border border-zinc-700/80 rounded-xl shadow-2xl p-1 overflow-hidden backdrop-blur-xl select-none"
+                                    onClick={e => e.stopPropagation()}
+                                    onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
                                 >
-                                    {contextMenu.item.isHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                    <span>{contextMenu.item.isHidden ? 'Show Item' : 'Hide Item'}</span>
-                                </button>
-                                {user && (
-                                    <>
-                                        <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
-                                        <button
-                                            onClick={() => handleDeleteClick(contextMenu.item)}
-                                            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/15 hover:text-red-300 rounded-md transition-colors"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                            <span>Delete Item</span>
-                                        </button>
-                                    </>
-                                )}
-                                <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
-                                <button
-                                    onClick={closeContextMenu}
-                                    className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-500 hover:bg-white/5 hover:text-zinc-300 rounded-md transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                    <span>Cancel</span>
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                                    {user && (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    if (contextMenu.item?.onEdit) {
+                                                        contextMenu.item.onEdit();
+                                                    } else {
+                                                        handleEditItem(contextMenu.item);
+                                                    }
+                                                    closeContextMenu();
+                                                }}
+                                                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 hover:text-white rounded-md transition-colors text-left"
+                                            >
+                                                <Pencil className="w-4 h-4 text-zinc-400" />
+                                                <span>Edit Name</span>
+                                            </button>
+                                            <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={async () => {
+                                            const { type, id, isHidden } = contextMenu.item;
+                                            await toggleItemVisibility(type, id, !isHidden);
+                                            closeContextMenu();
+                                            reloadData();
+                                        }}
+                                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 hover:text-white rounded-md transition-colors text-left"
+                                    >
+                                        {contextMenu.item?.isHidden ? <Eye className="w-4 h-4 text-zinc-400" /> : <EyeOff className="w-4 h-4 text-zinc-400" />}
+                                        <span>{contextMenu.item?.isHidden ? 'Show Item' : 'Hide Item'}</span>
+                                    </button>
+                                    {user && (
+                                        <>
+                                            <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
+                                            <button
+                                                onClick={() => {
+                                                    const item = contextMenu.item;
+                                                    closeContextMenu();
+                                                    handleDeleteClick(item);
+                                                }}
+                                                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/15 hover:text-red-300 rounded-md transition-colors text-left"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                <span>Delete Item</span>
+                                            </button>
+                                        </>
+                                    )}
+                                    <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
+                                    <button
+                                        onClick={closeContextMenu}
+                                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-zinc-400 hover:bg-white/10 hover:text-zinc-200 rounded-md transition-colors text-left"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        <span>Cancel</span>
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>,
+                        document.body
+                    )}
                 </main>
                 <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>

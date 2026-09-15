@@ -11,6 +11,8 @@ export default function Card({ id, displayName, group, imageSrc, codeId, isFavor
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
         onContextMenu(e, {
             id,
             type,

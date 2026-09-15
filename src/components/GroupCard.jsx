@@ -39,6 +39,8 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
         onContextMenu(e, { 
             id: group.id, 
             type: 'custom_group', 

@@ -27,6 +27,8 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
         onContextMenu(e, { 
             id: activeVariant.id, 
             type: 'texture', 
