@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RefreshCw, Layers, Trash2, X, Smile } from 'lucide-react';
+import { Copy, Check, RefreshCw, Layers, Trash2, X, Smile, Pencil } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
 import { getFlagEmoji } from '../utils/iso-utils.js';
 import CatalogImage from './CatalogImage.jsx';
@@ -9,7 +9,7 @@ import CatalogImage from './CatalogImage.jsx';
  * GroupCard — Displays a user-created group.
  * Features a stacked visual to indicate multiple items.
  */
-export default function GroupCard({ group, allItems, onDelete, isFavorite, onToggleFavorite, isFacebaseTab, isAdmin, hideCodes = false, onContextMenu }) {
+export default function GroupCard({ group, allItems, onDelete, isFavorite, onToggleFavorite, isFacebaseTab, isAdmin, hideCodes = false, onContextMenu, onEdit }) {
     const [copied, setCopied] = useState(false);
     const [showVariants, setShowVariants] = useState(false);
     const [reloading, setReloading] = useState(false);
@@ -39,7 +39,13 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
 
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
-        onContextMenu(e, { id: activeVariant.id, type: activeVariant.type, isHidden, name: activeVariant.displayName });
+        onContextMenu(e, { 
+            id: group.id, 
+            type: 'custom_group', 
+            isHidden, 
+            name: group.name,
+            onEdit: onEdit ? () => onEdit({ id: group.id, type: 'custom_group', name: group.name, currentName: group.name }) : undefined
+        });
     };
 
     const handleCycle = (e) => {
@@ -92,8 +98,20 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
                 className={`relative z-10 music-card facebase-card bg-[var(--card-light)] rounded-xl shadow-xl ring-1 ring-[var(--border)] overflow-hidden flex flex-col p-1.5 space-y-1.5 !w-full group/card hover:ring-[var(--gold2)]/30 transition-all duration-200 hover:shadow-2xl hover:-translate-y-0.5 ${isHidden ? 'opacity-40 grayscale' : ''} ${showVariants ? 'show-variants' : ''}`}
             >
                 
-                {/* Header: Favorites and Delete */}
+                {/* Header: Favorites, Edit and Delete */}
                 <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-1.5">
+                    {onEdit && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit({ id: group.id, type: 'custom_group', name: group.name, currentName: group.name });
+                            }}
+                            className="w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-zinc-300 hover:text-white hover:bg-black/60 transition-all backdrop-blur-sm opacity-0 group-hover/card:opacity-100"
+                            title="Edit group name"
+                        >
+                            <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(group.id); }}
                         className="w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-red-400 hover:bg-red-500/20 transition-all backdrop-blur-sm opacity-0 group-hover/card:opacity-100"
@@ -170,6 +188,20 @@ export default function GroupCard({ group, allItems, onDelete, isFavorite, onTog
                                     {otherVariantsCount}+
                                 </button>
                             )
+                        )}
+                        {/* Quick copy when codes are hidden */}
+                        {hideCodes && (
+                            <button
+                                onClick={handleCopy}
+                                title="Copy Code"
+                                className={`absolute bottom-1.5 ${hasVariants && isFacebaseTab ? 'left-1.5' : 'right-1.5'} w-7 h-7 flex items-center justify-center rounded-md border backdrop-blur-md opacity-0 group-hover/card:opacity-100 transition-all z-10 ${
+                                    copied
+                                        ? 'bg-green-500/80 text-white border-green-500 opacity-100'
+                                        : 'bg-black/60 text-zinc-300 border-white/10 hover:text-white hover:bg-black/80'
+                                }`}
+                            >
+                                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
                         )}
                     </div>
                 </div>

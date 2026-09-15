@@ -91,6 +91,105 @@ export async function updateFacebaseGroup(variantItems, newBaseName, newCountry)
         throw error;
     }
 }
+
+/**
+ * Updates the name (and metadata) of any catalog item across the app.
+ * Supports textures (including groups), avatar, music, and facebases.
+ */
+export async function updateCatalogItemName({ type, id, newName, groupVariants, extra = {} }) {
+    if (!type || !id || !newName) throw new Error('Missing required arguments to update name');
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) throw new Error('Name cannot be empty');
+
+    const collectionMap = {
+        'texture': 'textures',
+        'textures': 'textures',
+        'facebase': 'facebases',
+        'facebases': 'facebases',
+        'avatar': 'avatar',
+        'music': 'music'
+    };
+    const collectionName = collectionMap[type] || type;
+
+    if (collectionName === 'facebases') {
+        if (groupVariants && groupVariants.length > 0) {
+            const country = (extra.country || groupVariants[0]?.group || 'GENERAL').toUpperCase();
+            await updateFacebaseGroup(groupVariants, trimmedName, country);
+            return;
+        }
+        const itemRef = doc(db, 'facebases', id);
+        const updates = {
+            displayName: trimmedName,
+            name: trimmedName,
+            variant: trimmedName,
+            lastEdited: new Date().toISOString()
+        };
+        if (extra.country) {
+            updates.group = extra.country.toUpperCase();
+            updates.category = extra.country.toUpperCase();
+        }
+        await updateDoc(itemRef, updates);
+        return;
+    }
+
+    if (collectionName === 'textures') {
+        if (groupVariants && groupVariants.length > 1) {
+            const batch = writeBatch(db);
+            groupVariants.forEach(variant => {
+                const itemRef = doc(db, 'textures', variant.id);
+                const oldParts = (variant.displayName || '').trim().split(' ');
+                let newDisplayName = trimmedName;
+                if (oldParts.length > 1) {
+                    const suffix = oldParts[oldParts.length - 1];
+                    if (/^[0-9A-Za-z]+$/.test(suffix) && oldParts.length > 1) {
+                        newDisplayName = `${trimmedName} ${suffix}`;
+                    }
+                }
+                batch.update(itemRef, {
+                    baseName: trimmedName,
+                    displayName: newDisplayName,
+                    name: newDisplayName,
+                    lastEdited: new Date().toISOString()
+                });
+            });
+            await batch.commit();
+            return;
+        }
+
+        const itemRef = doc(db, 'textures', id);
+        await updateDoc(itemRef, {
+            baseName: trimmedName,
+            displayName: trimmedName,
+            name: trimmedName,
+            lastEdited: new Date().toISOString()
+        });
+        return;
+    }
+
+    if (collectionName === 'avatar') {
+        const itemRef = doc(db, 'avatar', id);
+        await updateDoc(itemRef, {
+            displayName: trimmedName,
+            name: trimmedName,
+            fullName: trimmedName,
+            searchName: trimmedName.toLowerCase(),
+            lastEdited: new Date().toISOString()
+        });
+        return;
+    }
+
+    if (collectionName === 'music') {
+        const itemRef = doc(db, 'music', id);
+        await updateDoc(itemRef, {
+            title: trimmedName,
+            name: trimmedName,
+            displayName: trimmedName,
+            lastEdited: new Date().toISOString()
+        });
+        return;
+    }
+}
 /**
  * Used for "healing" broken image links.
  * @param {string} type - 'textures', 'facebases', 'avatar'

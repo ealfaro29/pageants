@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RefreshCw, Layers, X } from 'lucide-react';
+import { Copy, Check, RefreshCw, Layers, X, Pencil } from 'lucide-react';
 import { reloadRobloxImage } from '../utils/image-reload';
 import { updateItemImageUrl } from '../utils/data-hooks';
 import CatalogImage from './CatalogImage.jsx';
@@ -9,7 +9,7 @@ import CatalogImage from './CatalogImage.jsx';
  * TextureCard — Displays a texture variant group.
  * Unified with the GroupCard style.
  */
-export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdmin, showHidden, hideCodes = false, onRefresh, onContextMenu }) {
+export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdmin, showHidden, hideCodes = false, onRefresh, onContextMenu, onEdit }) {
     const [copied, setCopied] = useState(false);
     const [showVariants, setShowVariants] = useState(false);
     const [activeVariant, setActiveVariant] = useState(group.mainVariant);
@@ -32,7 +32,14 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
             type: 'texture', 
             isHidden,
             name: activeVariant.displayName || group.baseName,
-            groupVariants: group.variants
+            groupVariants: group.variants,
+            onEdit: onEdit ? () => onEdit({
+                id: activeVariant.id,
+                type: 'texture',
+                name: group.baseName,
+                currentName: group.baseName,
+                groupVariants: group.variants
+            }) : undefined
         });
     };
 
@@ -92,7 +99,7 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
                     className={`relative z-10 music-card facebase-card bg-[var(--card-light)] rounded-xl shadow-xl ring-1 ring-[var(--border)] overflow-hidden flex flex-col p-1.5 space-y-1.5 !w-full group/card hover:ring-[var(--gold2)]/30 transition-all duration-200 hover:shadow-2xl hover:-translate-y-0.5 ${isHidden ? 'opacity-40 grayscale' : ''} ${showVariants ? 'show-variants' : ''}`}
                 >
                     
-                    {/* Header: Favorites */}
+                    {/* Header: Favorites & Edit */}
                     <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-1.5">
                         <div className="favorite-container !relative !top-0 !right-0 !bg-black/40 !w-7 !h-7 !backdrop-blur-sm">
                             <button
@@ -102,6 +109,26 @@ export default function TextureCard({ group, isFavorite, onToggleFavorite, isAdm
                                 {isFavorite(activeVariant.id) ? '❤️' : '🖤'}
                             </button>
                         </div>
+                        {isAdmin && onEdit && (
+                            <div className="favorite-container !relative !top-0 !right-0 !bg-black/40 !w-7 !h-7 !backdrop-blur-sm">
+                                <button
+                                    className="favorite-btn flex items-center justify-center p-0"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onEdit({
+                                            id: activeVariant.id,
+                                            type: 'texture',
+                                            name: group.baseName,
+                                            currentName: group.baseName,
+                                            groupVariants: group.variants
+                                        });
+                                    }}
+                                    title="Edit Texture Name"
+                                >
+                                    <Pencil className="w-3.5 h-3.5 text-zinc-300" />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="variant-display-container">

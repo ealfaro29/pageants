@@ -10,7 +10,7 @@ import CatalogImage from './CatalogImage.jsx';
  * FacebaseCard — Displays a facebase variant group.
  * Features a single "Cycle" button to toggle between expressions (Main, Closed, Side).
  */
-const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden, onRefresh, onContextMenu }) => {
+const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden, hideCodes = false, onRefresh, onContextMenu, onEdit }) => {
     const variantsList = Object.values(group.variants).filter(Boolean);
     const [activeVariant, setActiveVariant] = useState(group.defaultItem);
     const [reloading, setReloading] = useState(false);
@@ -28,6 +28,21 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
 
     const isHidden = activeVariant.hidden;
 
+    const triggerEdit = () => {
+        if (onEdit) {
+            onEdit({
+                id: activeVariant.id,
+                type: 'facebase',
+                name: group.baseDisplayName,
+                currentName: group.baseDisplayName,
+                group: group.group,
+                groupVariants: variantsList
+            });
+        } else {
+            setIsEditing(true);
+        }
+    };
+
     const handleContextMenu = (e) => {
         if (!isAdmin || !onContextMenu) return;
         onContextMenu(e, { 
@@ -36,7 +51,7 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
             isHidden,
             name: activeVariant.displayName || group.baseDisplayName,
             groupVariants: variantsList,
-            onEdit: () => setIsEditing(true)
+            onEdit: triggerEdit
         });
     };
 
@@ -162,7 +177,7 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
                             <div className="favorite-container !relative !top-0 !right-0 !bg-black/40 !w-7 !h-7 !backdrop-blur-sm">
                                 <button
                                     className="favorite-btn flex items-center justify-center p-0"
-                                    onClick={(e) => { e.stopPropagation(); setIsEditing(!isEditing); }}
+                                    onClick={(e) => { e.stopPropagation(); triggerEdit(); }}
                                     title="Edit Name/Country"
                                 >
                                     <Pencil className="w-3.5 h-3.5 text-zinc-300" />
@@ -213,6 +228,21 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
                             >
                                 <RefreshCw className="w-3.5 h-3.5" />
                             </button>
+
+                            {/* Quick copy when codes are hidden */}
+                            {hideCodes && (
+                                <button
+                                    onClick={handleCopy}
+                                    title="Copy Code"
+                                    className={`absolute bottom-2 ${hasVariants ? 'left-2' : 'right-2'} w-8 h-8 flex items-center justify-center rounded-md border backdrop-blur-md opacity-0 group-hover/card:opacity-100 transition-all z-10 ${
+                                        copied
+                                            ? 'bg-green-500/80 text-white border-green-500 opacity-100'
+                                            : 'bg-black/60 text-zinc-300 border-white/10 hover:text-white hover:bg-black/80'
+                                    }`}
+                                >
+                                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -278,26 +308,28 @@ const FacebaseCard = ({ group, isFavorite, onToggleFavorite, isAdmin, showHidden
                         )}
                     </AnimatePresence>
 
-                    {/* Footer with Code Input and Copy Action */}
-                    <div className="flex items-center gap-1.5 p-1 card-footer">
-                        <input
-                            readOnly
-                            type="text"
-                            value={activeVariant.codeId || ''}
-                            placeholder="…"
-                            className="flex-grow w-0 h-8 px-2 text-xs dark-input rounded-md main-code-id-input"
-                        />
-                        <button
-                            onClick={handleCopy}
-                            className={`copy-btn flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md border transition-all ${copied
-                                ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                                : 'bg-[var(--card-lighter)] text-[var(--ink)] border-[var(--border)] hover:bg-[var(--card-hover)]'
-                                }`}
-                            title="Copy Code"
-                        >
-                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                    </div>
+                    {/* Footer with Code Input and Copy Action (hidden when hideCodes is true) */}
+                    {!hideCodes && (
+                        <div className="flex items-center gap-1.5 p-1 card-footer">
+                            <input
+                                readOnly
+                                type="text"
+                                value={activeVariant.codeId || ''}
+                                placeholder="…"
+                                className="flex-grow w-0 h-8 px-2 text-xs dark-input rounded-md main-code-id-input"
+                            />
+                            <button
+                                onClick={handleCopy}
+                                className={`copy-btn flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md border transition-all ${copied
+                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                    : 'bg-[var(--card-lighter)] text-[var(--ink)] border-[var(--border)] hover:bg-[var(--card-hover)]'
+                                    }`}
+                                title="Copy Code"
+                            >
+                                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

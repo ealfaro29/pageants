@@ -9,7 +9,7 @@ import FacebaseCard from './components/FacebaseCard';
 import MusicCard from './components/MusicCard';
 import { Search, Layers, CheckSquare, Square, X, Eye, EyeOff, Pencil, Filter as LucideFilter, Trash2, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeAllData, toggleItemVisibility, deleteCatalogItem, deleteCatalogItems } from './utils/data-hooks.js';
+import { initializeAllData, toggleItemVisibility, deleteCatalogItem, deleteCatalogItems, updateCatalogItemName } from './utils/data-hooks.js';
 import { useFavorites } from './hooks/useFavorites.js';
 import { useGroups } from './hooks/useGroups.js';
 import { groupTextureVariants } from './utils/texture-utils.js';
@@ -25,6 +25,7 @@ import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
+import EditNameModal from './components/EditNameModal';
 import { useFavicon, FAVICONS } from './hooks/useFavicon';
 
 // Friendly names for texture category codes
@@ -75,23 +76,47 @@ function Dashboard({ user }) {
     // Context Menu State
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, item: null });
 
-    // Texture codes visibility state (persisted in localStorage)
-    const [hideTextureCodes, setHideTextureCodes] = useState(() => {
+    // Global codes visibility state (persisted in localStorage)
+    const [hideCodes, setHideCodes] = useState(() => {
         try {
-            return localStorage.getItem('catalog_hide_texture_codes') === 'true';
+            return localStorage.getItem('catalog_hide_codes') === 'true' || localStorage.getItem('catalog_hide_texture_codes') === 'true';
         } catch {
             return false;
         }
     });
 
-    const toggleHideTextureCodes = () => {
-        setHideTextureCodes(prev => {
+    const toggleHideCodes = () => {
+        setHideCodes(prev => {
             const next = !prev;
             try {
+                localStorage.setItem('catalog_hide_codes', String(next));
                 localStorage.setItem('catalog_hide_texture_codes', String(next));
             } catch {}
             return next;
         });
+    };
+
+    // Edit Name Modal State
+    const [editModal, setEditModal] = useState({
+        isOpen: false,
+        item: null
+    });
+
+    const handleEditItem = (item) => {
+        closeContextMenu();
+        setEditModal({
+            isOpen: true,
+            item
+        });
+    };
+
+    const handleSaveItemName = async ({ id, type, newName, groupVariants, extra }) => {
+        if (type === 'custom_group') {
+            updateGroup(id, { name: newName });
+        } else {
+            await updateCatalogItemName({ type, id, newName, groupVariants, extra });
+            await reloadData();
+        }
     };
 
     // Delete Modal State
@@ -305,8 +330,9 @@ function Dashboard({ user }) {
                     onToggleFavorite={toggleFavorite}
                     isFacebaseTab={activeTab === 'facebases'}
                     isAdmin={!!user}
-                    hideCodes={activeTab === 'textures' && hideTextureCodes}
+                    hideCodes={hideCodes}
                     onContextMenu={handleContextMenu}
+                    onEdit={handleEditItem}
                 />
             ));
         };
@@ -337,8 +363,10 @@ function Dashboard({ user }) {
                                 onToggleFavorite={toggleFavorite}
                                 type="avatar"
                                 isAdmin={!!user}
+                                hideCodes={hideCodes}
                                 onRefresh={reloadData}
                                 onContextMenu={handleContextMenu}
+                                onEdit={handleEditItem}
                             />
                         </SelectionWrap>
                     ))}
@@ -368,9 +396,10 @@ function Dashboard({ user }) {
                                 onToggleFavorite={toggleFavorite}
                                 isAdmin={!!user}
                                 showHidden={showHidden}
-                                hideCodes={hideTextureCodes}
+                                hideCodes={hideCodes}
                                 onRefresh={reloadData}
                                 onContextMenu={handleContextMenu}
+                                onEdit={handleEditItem}
                             />
                         </SelectionWrap>
                     ))}
@@ -403,8 +432,10 @@ function Dashboard({ user }) {
                                 onToggleFavorite={toggleFavorite}
                                 isAdmin={!!user}
                                 showHidden={showHidden}
+                                hideCodes={hideCodes}
                                 onRefresh={reloadData}
                                 onContextMenu={handleContextMenu}
+                                onEdit={handleEditItem}
                             />
                         </SelectionWrap>
                     ))}
@@ -437,8 +468,10 @@ function Dashboard({ user }) {
                                 isFavorite={isFavorite}
                                 onToggleFavorite={toggleFavorite}
                                 isAdmin={!!user}
+                                hideCodes={hideCodes}
                                 onRefresh={reloadData}
                                 onContextMenu={handleContextMenu}
+                                onEdit={handleEditItem}
                             />
                         </SelectionWrap>
                     ))}
@@ -475,16 +508,12 @@ function Dashboard({ user }) {
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {favoriteItems.map(item => {
                         if (item._type === 'avatar') {
-                            return <Card key={item.id} id={item.id} displayName={item.displayName} group={item.group} imageSrc={item.src} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} type="avatar" />
+                            return <Card key={item.id} id={item.id} displayName={item.displayName} group={item.group} imageSrc={item.src} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} type="avatar" isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
                         }
                         if (item._type === 'music') {
-                            return <MusicCard key={item.id} code={item} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} />
+                            return <MusicCard key={item.id} code={item} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
                         }
-                        // For textures and facebases, we need group rendering in favorites which is more complex. Let's just render simplified cards for now or leave a placeholder.
-                        // The original logic dynamically handled this. For now let's just use generic Card for them if they appear in favorites, or we can use the specific ones if we map them correctly.
-                        // Let's use generic card for texture/facebase if they appear here for simplicity, the original code had dedicated logic to re-form groups for favorites?
-                        // Actually, the vanilla JS fetched the raw HTML if it was a favorite. We'll just render it as a generic Card for now as a fallback to get things showing.
-                        return <Card key={item.id} id={item.id} displayName={item.displayName || item.baseName || item.title} group={item.group || item.category} imageSrc={item.src || (item.defaultItem && item.defaultItem.src) || ''} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} />
+                        return <Card key={item.id} id={item.id} displayName={item.displayName || item.baseName || item.title} group={item.group || item.category} imageSrc={item.src || (item.defaultItem && item.defaultItem.src) || ''} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
                     })}
                 </div>
             )
@@ -600,21 +629,21 @@ function Dashboard({ user }) {
                                                 </button>
                                             )}
 
-                                            {/* Hide Texture Codes Toggle */}
-                                            {activeTab === 'textures' && (
+                                            {/* Hide Codes Toggle (All tabs) */}
+                                            {activeTab !== 'favorites' && (
                                                 <button
                                                     onClick={() => {
-                                                        toggleHideTextureCodes();
+                                                        toggleHideCodes();
                                                         setIsFilterMenuOpen(false);
                                                     }}
                                                     className={`flex items-center gap-3 w-full p-3 rounded-xl border transition-all text-sm font-medium ${
-                                                        hideTextureCodes
+                                                        hideCodes
                                                             ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
                                                             : 'bg-zinc-800/30 text-zinc-400 border-zinc-800/50'
                                                     }`}
                                                 >
                                                     <Hash className="w-4 h-4" />
-                                                    <span>{hideTextureCodes ? 'Show Texture Codes' : 'Hide Texture Codes'}</span>
+                                                    <span>{hideCodes ? 'Show Codes' : 'Hide Codes'}</span>
                                                 </button>
                                             )}
 
@@ -670,19 +699,19 @@ function Dashboard({ user }) {
                                 </button>
                             )}
 
-                            {/* Hide Texture Codes Toggle */}
-                            {activeTab === 'textures' && (
+                            {/* Hide Codes Toggle (All tabs) */}
+                            {activeTab !== 'favorites' && (
                                 <button
-                                    onClick={toggleHideTextureCodes}
+                                    onClick={toggleHideCodes}
                                     className={`flex-shrink-0 h-12 px-3 flex items-center gap-2 rounded-md border transition-all text-sm font-medium ${
-                                        hideTextureCodes
+                                        hideCodes
                                             ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm'
                                             : 'bg-[var(--card-light)] text-zinc-400 border-[var(--border)] hover:text-[var(--gold2)] hover:border-[var(--gold2)]/30'
                                     }`}
-                                    title={hideTextureCodes ? 'Show texture codes' : 'Hide texture codes'}
+                                    title={hideCodes ? 'Show codes' : 'Hide codes'}
                                 >
                                     <Hash className="w-4 h-4" />
-                                    <span>{hideTextureCodes ? 'Show Codes' : 'Hide Codes'}</span>
+                                    <span>{hideCodes ? 'Show Codes' : 'Hide Codes'}</span>
                                 </button>
                             )}
 
@@ -758,17 +787,21 @@ function Dashboard({ user }) {
                                 className="fixed z-[9999] min-w-[160px] bg-[#1a1c24] border border-zinc-800 rounded-lg shadow-2xl p-1 overflow-hidden backdrop-blur-xl"
                                 onClick={e => e.stopPropagation()}
                             >
-                                {contextMenu.item.onEdit && (
+                                {user && (
                                     <>
                                         <button
                                             onClick={() => {
-                                                contextMenu.item.onEdit();
+                                                if (contextMenu.item?.onEdit) {
+                                                    contextMenu.item.onEdit();
+                                                } else {
+                                                    handleEditItem(contextMenu.item);
+                                                }
                                                 closeContextMenu();
                                             }}
                                             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-white rounded-md transition-colors"
                                         >
                                             <Pencil className="w-4 h-4" />
-                                            <span>Edit Details</span>
+                                            <span>Edit Name</span>
                                         </button>
                                         <div className="h-[1px] bg-zinc-800 my-1 mx-2" />
                                     </>
@@ -888,6 +921,14 @@ function Dashboard({ user }) {
                 item={deleteModal.item}
                 isBatch={deleteModal.isBatch}
                 batchItems={deleteModal.batchItems}
+            />
+
+            {/* Edit Name Modal */}
+            <EditNameModal
+                isOpen={editModal.isOpen}
+                onClose={() => setEditModal(prev => ({ ...prev, isOpen: false }))}
+                onSave={handleSaveItemName}
+                item={editModal.item}
             />
         </>
     );
