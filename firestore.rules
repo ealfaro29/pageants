@@ -28,6 +28,7 @@ service cloud.firestore {
 
     // Scoring sessions are intentionally public because hosts and judges join by code
     // without Firebase Auth. The app-level session code is the access boundary.
+    // Shared scoresheets live under sessions/_scoresheets/sheets/{id} (link = access).
     match /sessions/{document=**} {
       allow read, write: if true;
     }

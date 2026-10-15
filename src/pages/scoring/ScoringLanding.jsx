@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X } from 'lucide-react';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X, Sheet } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
@@ -17,11 +17,32 @@ import {
   getStoredScoringAccent,
   getStoredScoringTheme,
   persistScoringAccent,
-  persistScoringTheme
+  persistScoringTheme,
+  SCORING_ACCENTS
 } from './scoringTheme';
 import { SCORING_MODE_PHASE, SCORING_MODE_TOTAL } from './scoringMode';
 import { buildSessionId, normalizeSessionCodeSuffix, resolveLookupSessionIds, SESSION_CODE_PREFIX } from './sessionCodeUtils';
 import { getCachedSessionCounter, incrementSessionCounter, loadSessionCounter } from './sessionCounter';
+import {
+  buildDefaultScoresheet,
+  buildScoresheetId,
+  DEFAULT_JUDGE_COUNT,
+  MAX_JUDGES,
+  normalizeScoresheetCode,
+  SCORESHEET_CODE_PREFIX,
+  scoresheetRef
+} from './scoresheet/scoresheetModel';
+
+// "New" badge for the scoresheet option: shown for 15 days after the 2026-10-14 release.
+const SCORESHEET_NEW_UNTIL = new Date('2026-10-29T23:59:59').getTime();
+
+function NewBadge({ label, className = '' }) {
+  return (
+    <span className={`inline-flex items-center rounded-full bg-[#fbbf24] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-[#09090b] shadow-[0_0_14px_rgba(251,191,36,0.55)] ${className}`}>
+      {label}
+    </span>
+  );
+}
 
 function normalizeJudgeIdentity(value) {
   return String(value || '').trim().toLowerCase();
@@ -54,20 +75,18 @@ export default function ScoringLanding() {
   const [hostCanVote, setHostCanVote] = useState(true);
   const [judgeName, setJudgeName] = useState('');
   const [sessionCode, setSessionCode] = useState('');
+  const [sheetTitle, setSheetTitle] = useState('');
+  const [sheetJudgeCount, setSheetJudgeCount] = useState(DEFAULT_JUDGE_COUNT);
+  const [sheetCode, setSheetCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [sessionCounter, setSessionCounter] = useState(() => getCachedSessionCounter());
   const [mobileSection, setMobileSection] = useState('home');
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
   const t = scoringCopy[language];
+  const showScoresheetNew = Date.now() <= SCORESHEET_NEW_UNTIL;
 
-  const accents = [
-    { key: 'white', color: '#ffffff' },
-    { key: 'gold', color: '#fbbf24' },
-    { key: 'rose', color: '#fb7185' },
-    { key: 'cyan', color: '#22d3ee' },
-    { key: 'purple', color: '#c084fc' },
-  ];
+  const accents = SCORING_ACCENTS;
 
   useEffect(() => {
     persistScoringLanguage(language);
@@ -215,6 +234,112 @@ export default function ScoringLanding() {
     navigate(`/session/${encodeURIComponent(code)}/results`);
   };
 
+  const handleScoresheetCreate = async (event) => {
+    event.preventDefault();
+    if (!sheetTitle.trim()) {
+      setError(t.create.completeFields);
+      return;
+    }
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError('');
+    const sheetId = buildScoresheetId();
+    try {
+      await setDoc(scoresheetRef(sheetId), buildDefaultScoresheet({
+        id: sheetId,
+        title: sheetTitle.trim(),
+        judgeCount: sheetJudgeCount,
+        language
+      }));
+      navigate(`/sheet/${sheetId}`);
+    } catch (submitError) {
+      console.error(submitError);
+      setError(getCreateSessionErrorMessage(submitError, t.landing.scoresheetError));
+      setSubmitting(false);
+    }
+  };
+
+  const handleScoresheetOpen = async (event) => {
+    event.preventDefault();
+    const suffix = normalizeScoresheetCode(sheetCode);
+    if (!suffix || submitting) return;
+
+    setSubmitting(true);
+    setError('');
+    const sheetId = `${SCORESHEET_CODE_PREFIX}${suffix}`;
+    try {
+      const snapshot = await getDoc(scoresheetRef(sheetId));
+      if (!snapshot.exists()) {
+        setError(t.landing.scoresheetMissing);
+        setSubmitting(false);
+        return;
+      }
+      navigate(`/sheet/${sheetId}`);
+    } catch (openError) {
+      console.error(openError);
+      setError(t.join.connectionError);
+      setSubmitting(false);
+    }
+  };
+
+  const renderScoresheetForms = (showBack) => (
+    <div className="space-y-4">
+      <form onSubmit={handleScoresheetCreate} className="space-y-3">
+        <input
+          type="text"
+          value={sheetTitle}
+          onChange={event => { setSheetTitle(event.target.value); setError(''); }}
+          className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+          placeholder={t.landing.scoresheetTitlePlaceholder}
+          required
+        />
+        <label className="flex items-center justify-between gap-3 rounded-lg border border-app-border/60 bg-app-card/35 px-3 h-11">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetJudgesLabel}</span>
+          <input
+            type="number"
+            min="1"
+            max={MAX_JUDGES}
+            value={sheetJudgeCount}
+            onChange={event => setSheetJudgeCount(Math.min(MAX_JUDGES, Math.max(1, Number(event.target.value) || 1)))}
+            className="scoring-input w-20 rounded-md h-8 px-2 text-sm text-center"
+          />
+        </label>
+        <div className="flex items-center gap-2 pt-1">
+          {showBack && (
+            <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+              {t.landing.workflowBack}
+            </button>
+          )}
+          <button type="submit" disabled={submitting} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetCreating}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetCreate}</>}
+          </button>
+        </div>
+      </form>
+      <form onSubmit={handleScoresheetOpen} className="border-t border-app-border/50 pt-4 space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetOpenLabel}</p>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center flex-1">
+            <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+              {SCORESHEET_CODE_PREFIX}
+            </span>
+            <input
+              type="text"
+              value={sheetCode}
+              onChange={event => { setSheetCode(normalizeScoresheetCode(event.target.value)); setError(''); }}
+              className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest"
+              placeholder="XXXXXX"
+              maxLength={6}
+            />
+          </div>
+          <button type="submit" disabled={submitting || !sheetCode} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50">
+            {t.landing.scoresheetOpen}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+
   return (
     <div 
       className={`theme-scoring-${theme} min-h-screen bg-app-bg text-app-text font-sans flex flex-col items-center relative overflow-hidden`}
@@ -295,13 +420,13 @@ export default function ScoringLanding() {
           </Link>
         </motion.div>
 
-        <motion.section variants={itemVariants} className="w-full max-w-3xl">
+        <motion.section variants={itemVariants} className="w-full max-w-5xl">
           <div className="scoring-panel rounded-[2rem] border border-app-border/70 bg-app-card/50 p-6 md:p-8">
             <div className="text-center mb-6">
               <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-app-accent/85">{t.landing.workflowTitle}</p>
               <p className="text-sm text-app-muted/80 mt-2">{t.landing.workflowSubtitle}</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               <button
                 type="button"
                 onClick={() => { setActiveRole('host'); setError(''); }}
@@ -336,6 +461,19 @@ export default function ScoringLanding() {
                 </span>
                 <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleSpectator}</p>
                 <p className="text-xs text-app-muted/80 mt-1">{t.landing.liveResultsDescription}</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setActiveRole('scoresheet'); setError(''); }}
+                className={`relative text-left rounded-2xl border px-4 py-5 transition-colors ${showScoresheetNew ? 'border-[#fbbf24]/60 bg-[#fbbf24]/[0.06] hover:border-[#fbbf24]' : 'border-app-border/70 bg-app-card/45 hover:border-app-accent/45'}`}
+              >
+                {showScoresheetNew && <NewBadge label={t.landing.newBadge} className="absolute top-3 right-3" />}
+                <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
+                  <Sheet className="w-5 h-5" />
+                </span>
+                <p className="mt-4 text-base font-bold text-app-text">{t.landing.roleScoresheet}</p>
+                <p className="text-xs text-app-muted/80 mt-1">{t.landing.scoresheetDescription}</p>
               </button>
             </div>
 
@@ -480,6 +618,8 @@ export default function ScoringLanding() {
                   </form>
                 )}
 
+                {activeRole === 'scoresheet' && renderScoresheetForms(true)}
+
                 {error && (
                   <div className="mt-3 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300 text-center">
                     {error}
@@ -532,6 +672,13 @@ export default function ScoringLanding() {
                 <button type="button" onClick={() => setMobileSection('spectator')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
                   <p className="text-sm font-bold">{t.landing.roleSpectator}</p>
                   <p className="text-xs text-app-muted/80 mt-1">{t.landing.liveResultsDescription}</p>
+                </button>
+                <button type="button" onClick={() => setMobileSection('scoresheet')} className="text-left rounded-xl border border-app-border/70 bg-app-card/45 px-4 py-3">
+                  <p className="text-sm font-bold flex items-center gap-2">
+                    {t.landing.roleScoresheet}
+                    {showScoresheetNew && <NewBadge label={t.landing.newBadge} />}
+                  </p>
+                  <p className="text-xs text-app-muted/80 mt-1">{t.landing.scoresheetDescription}</p>
                 </button>
               </div>
             </section>
@@ -629,6 +776,13 @@ export default function ScoringLanding() {
             </section>
           )}
 
+          {mobileSection === 'scoresheet' && (
+            <section className="scoring-panel rounded-2xl p-4">
+              <h3 className="text-lg font-black mb-3">{t.landing.roleScoresheet}</h3>
+              {renderScoresheetForms(false)}
+            </section>
+          )}
+
           {mobileSection === 'manual' && (
             <section className="scoring-panel rounded-2xl p-4 space-y-3">
               <h3 className="text-lg font-black">{t.landing.howToButton}</h3>
@@ -656,23 +810,26 @@ export default function ScoringLanding() {
           className="fixed bottom-0 left-0 right-0 border-t border-app-border/60 bg-app-card/95 backdrop-blur-lg px-2 py-2 z-30"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
         >
-          <div className="grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-6 gap-1">
             {[
               { key: 'home', label: t.landing.mobileHome, icon: House },
               { key: 'host', label: t.landing.mobileHost, icon: UserCog },
               { key: 'judge', label: t.landing.mobileJudge, icon: Users },
               { key: 'spectator', label: t.landing.mobileSpectator, icon: Eye },
+              { key: 'scoresheet', label: t.landing.mobileScoresheet, icon: Sheet },
               { key: 'manual', label: t.landing.mobileManual, icon: ClipboardList }
             ].map(item => {
               const Icon = item.icon;
               const active = mobileSection === item.key;
+              const isNew = item.key === 'scoresheet' && showScoresheetNew;
               return (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setMobileSection(item.key)}
-                  className={`rounded-lg py-2 px-1 flex flex-col items-center gap-1 transition-colors ${active ? 'bg-app-accent/12 text-app-accent' : 'text-app-muted/70'}`}
+                  className={`relative rounded-lg py-2 px-1 flex flex-col items-center gap-1 transition-colors ${active ? 'bg-app-accent/12 text-app-accent' : 'text-app-muted/70'}`}
                 >
+                  {isNew && <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#fbbf24] shadow-[0_0_8px_rgba(251,191,36,0.8)]" />}
                   <Icon className="w-4 h-4" />
                   <span className="text-[9px] sm:text-[10px] font-bold tracking-tight leading-tight text-center">{item.label}</span>
                 </button>

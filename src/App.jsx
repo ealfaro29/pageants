@@ -22,6 +22,7 @@ import ScoringLanding from './pages/scoring/ScoringLanding';
 import PublicResults from './pages/scoring/PublicResults';
 import ViewResultsAccess from './pages/scoring/ViewResultsAccess';
 import UserManual from './pages/scoring/UserManual';
+import ScoresheetBoard from './pages/scoring/scoresheet/ScoresheetBoard';
 import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
@@ -976,7 +977,7 @@ function App() {
     const { pathname } = useLocation();
 
     // Dynamically change favicon based on route
-    useFavicon(pathname === '/' || pathname.startsWith('/session') || pathname === '/create' || pathname === '/join' || pathname === '/results' || pathname === '/manual'
+    useFavicon(pathname === '/' || pathname.startsWith('/session') || pathname.startsWith('/sheet') || pathname === '/create' || pathname === '/join' || pathname === '/results' || pathname === '/manual'
         ? FAVICONS.CROWN
         : FAVICONS.HEEL);
 
@@ -1005,6 +1006,7 @@ function App() {
             <Route path="/manual" element={<UserManual />} />
             <Route path="/session/:sessionId" element={<SessionBoard />} />
             <Route path="/session/:sessionId/results" element={<PublicResults />} />
+            <Route path="/sheet/:sheetId" element={<ScoresheetBoard />} />
 
             {/* Compatibilidad de rutas antiguas de scoring */}
             <Route path="/session" element={<Navigate to="/" replace />} />

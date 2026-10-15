@@ -1,5 +1,7 @@
 export { default as AlertTriangle } from 'lucide-react/dist/esm/icons/triangle-alert.js';
+export { default as ArrowDownWideNarrow } from 'lucide-react/dist/esm/icons/arrow-down-wide-narrow.js';
 export { default as ArrowLeft } from 'lucide-react/dist/esm/icons/arrow-left.js';
+export { default as Award } from 'lucide-react/dist/esm/icons/award.js';
 export { default as BarChart3 } from 'lucide-react/dist/esm/icons/chart-column.js';
 export { default as BookOpen } from 'lucide-react/dist/esm/icons/book-open.js';
 export { default as Camera } from 'lucide-react/dist/esm/icons/camera.js';
@@ -37,8 +39,10 @@ export { default as RefreshCw } from 'lucide-react/dist/esm/icons/refresh-cw.js'
 export { default as RotateCcw } from 'lucide-react/dist/esm/icons/rotate-ccw.js';
 export { default as Save } from 'lucide-react/dist/esm/icons/save.js';
 export { default as Search } from 'lucide-react/dist/esm/icons/search.js';
+export { default as Send } from 'lucide-react/dist/esm/icons/send.js';
 export { default as Settings } from 'lucide-react/dist/esm/icons/settings.js';
 export { default as Settings2 } from 'lucide-react/dist/esm/icons/settings-2.js';
+export { default as Sheet } from 'lucide-react/dist/esm/icons/sheet.js';
 export { default as ShieldCheck } from 'lucide-react/dist/esm/icons/shield-check.js';
 export { default as ShieldX } from 'lucide-react/dist/esm/icons/shield-x.js';
 export { default as Smile } from 'lucide-react/dist/esm/icons/smile.js';
@@ -51,6 +55,7 @@ export { default as UploadCloud } from 'lucide-react/dist/esm/icons/cloud-upload
 export { default as User } from 'lucide-react/dist/esm/icons/user.js';
 export { default as UserCheck } from 'lucide-react/dist/esm/icons/user-check.js';
 export { default as UserCog } from 'lucide-react/dist/esm/icons/user-cog.js';
+export { default as UserPlus } from 'lucide-react/dist/esm/icons/user-plus.js';
 export { default as UserRoundCheck } from 'lucide-react/dist/esm/icons/user-round-check.js';
 export { default as UserRoundMinus } from 'lucide-react/dist/esm/icons/user-round-minus.js';
 export { default as UserX } from 'lucide-react/dist/esm/icons/user-x.js';

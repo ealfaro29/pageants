@@ -1,6 +1,14 @@
 export const DEFAULT_SCORING_THEME = 'dark';
 export const DEFAULT_SCORING_ACCENT = '#ffffff';
 
+export const SCORING_ACCENTS = [
+  { key: 'white', color: '#ffffff' },
+  { key: 'gold', color: '#fbbf24' },
+  { key: 'rose', color: '#fb7185' },
+  { key: 'cyan', color: '#22d3ee' },
+  { key: 'purple', color: '#c084fc' },
+];
+
 const THEME_KEY = 'pageants-scoring-theme';
 const ACCENT_KEY = 'pageants-scoring-accent';
 
