@@ -2,7 +2,7 @@
 // runs under the owner's Google account: visitors don't sign in, the file lives in the
 // owner's Drive and is shared as "anyone with the link can edit".
 // Script source: scripts/google-apps-script/Code.gs (setup steps in its header).
-export const GOOGLE_SHEETS_WEBAPP_URL = '';
+export const GOOGLE_SHEETS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxRproFmaTIzpC4Ndlc5C98DpU2SzyNrzit05LNdCBTFPsDML7RXhb6Dd8cCeBDr53i7A/exec';
 
 export class GoogleSheetsError extends Error {
   constructor(code, message) {
