@@ -43,10 +43,15 @@ const T = {
   awardsTitle: 'PREMIOS ESPECIALES · SPECIAL AWARDS',
   award: ['PREMIO', 'AWARD'],
   awardWinner: ['GANADORA', 'WINNER'],
-  locked: 'Fórmulas bloqueadas · Locked formulas'
+  locked: 'Fórmulas bloqueadas · Locked formulas',
+  exportImage: '📸 EXPORTAR IMAGEN · EXPORT IMAGE'
 };
 
 const FONT = 'Montserrat';
+
+// Replaced with the real spreadsheet id right after the sheet is created (see webapp.js).
+export const SHEET_ID_PLACEHOLDER = '__PAGEANTS_SHEET_ID__';
+const RESULTS_IMAGE_URL = 'https://pageants.app/sheet-results';
 
 const COLORS = {
   ink: '#0b0b0c',
@@ -290,6 +295,10 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   // Row 1: pageant name (from SETUP).
   const row1 = filled(dark);
   row1[NUM] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_TITLE_ROW})`, banner);
+  row1[R_RK] = formulaCell(
+    `=HYPERLINK("${RESULTS_IMAGE_URL}?id=${SHEET_ID_PLACEHOLDER}&tab="&ENCODEURL("${phase.name.toUpperCase()}"),"${T.exportImage}")`,
+    fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 10, align: 'RIGHT', padding: pad })
+  );
   rows.push(row1);
 
   // Row 2: phase name, score progress, ranking title.
@@ -449,6 +458,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
 
   const merges = [
     gridRange(sheetId, 0, 1, NUM, CM + 1),
+    gridRange(sheetId, 0, 1, R_RK, R_ST + 1),
     gridRange(sheetId, 1, 2, NUM, CM),
     gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
     gridRange(sheetId, 2, 3, NUM, Q_IN),

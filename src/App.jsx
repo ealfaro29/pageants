@@ -23,6 +23,7 @@ import PublicResults from './pages/scoring/PublicResults';
 import ViewResultsAccess from './pages/scoring/ViewResultsAccess';
 import UserManual from './pages/scoring/UserManual';
 import ScoresheetBoard from './pages/scoring/scoresheet/ScoresheetBoard';
+import SheetResultsImage from './pages/scoring/scoresheet/SheetResultsImage';
 import Login from './pages/Login';
 import GroupCard from './components/GroupCard';
 import BottomNav from './components/BottomNav';
@@ -1025,6 +1026,7 @@ function App() {
             <Route path="/session/:sessionId" element={<SessionBoard />} />
             <Route path="/session/:sessionId/results" element={<PublicResults />} />
             <Route path="/sheet/:sheetId" element={<ScoresheetBoard />} />
+            <Route path="/sheet-results" element={<SheetResultsImage />} />
 
             {/* Compatibilidad de rutas antiguas de scoring */}
             <Route path="/session" element={<Navigate to="/" replace />} />

@@ -58,10 +58,15 @@ const T = {
   awardsTitle: 'PREMIOS ESPECIALES · SPECIAL AWARDS',
   award: ['PREMIO', 'AWARD'],
   awardWinner: ['GANADORA', 'WINNER'],
-  locked: 'Fórmulas bloqueadas · Locked formulas'
+  locked: 'Fórmulas bloqueadas · Locked formulas',
+  exportImage: '📸 EXPORTAR IMAGEN · EXPORT IMAGE'
 };
 
 const FONT = 'Montserrat';
+
+// Replaced with the real spreadsheet id right after the sheet is created (see webapp.js).
+const SHEET_ID_PLACEHOLDER = '__PAGEANTS_SHEET_ID__';
+const RESULTS_IMAGE_URL = 'https://pageants.app/sheet-results';
 
 const COLORS = {
   ink: '#0b0b0c',
@@ -305,6 +310,10 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   // Row 1: pageant name (from SETUP).
   const row1 = filled(dark);
   row1[NUM] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_TITLE_ROW})`, banner);
+  row1[R_RK] = formulaCell(
+    `=HYPERLINK("${RESULTS_IMAGE_URL}?id=${SHEET_ID_PLACEHOLDER}&tab="&ENCODEURL("${phase.name.toUpperCase()}"),"${T.exportImage}")`,
+    fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 10, align: 'RIGHT', padding: pad })
+  );
   rows.push(row1);
 
   // Row 2: phase name, score progress, ranking title.
@@ -464,6 +473,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
 
   const merges = [
     gridRange(sheetId, 0, 1, NUM, CM + 1),
+    gridRange(sheetId, 0, 1, R_RK, R_ST + 1),
     gridRange(sheetId, 1, 2, NUM, CM),
     gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
     gridRange(sheetId, 2, 3, NUM, Q_IN),
@@ -630,8 +640,90 @@ function jsonResponse(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function doGet() {
-  return jsonResponse({ ok: true, service: 'pageants-scoresheets' });
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  if (!params.sheet) return jsonResponse({ ok: true, service: 'pageants-scoresheets' });
+  try {
+    return jsonResponse(readResults(String(params.sheet), String(params.tab || '')));
+  } catch (error) {
+    return jsonResponse({ ok: false, code: error && error.code || 'request-failed', error: String(error && error.message || error) });
+  }
+}
+
+// Only spreadsheets this web app created (they live in the scoresheet folder) can be read.
+function isScoresheetFile(sheetId) {
+  const folderId = PropertiesService.getScriptProperties().getProperty('FOLDER_ID');
+  if (!folderId) return false;
+  try {
+    const parents = DriveApp.getFileById(sheetId).getParents();
+    while (parents.hasNext()) {
+      if (parents.next().getId() === folderId) return true;
+    }
+  } catch (error) {
+    return false;
+  }
+  return false;
+}
+
+function NotFoundError() {
+  this.message = 'Scoresheet not found';
+  this.code = 'not-found';
+}
+
+// Results of one phase tab for the shareable image: judges are returned only as a count
+// and score columns, never by name.
+function readResults(sheetId, tabName) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(sheetId) || !isScoresheetFile(sheetId)) throw new NotFoundError();
+
+  const meta = Sheets.Spreadsheets.get(sheetId, { fields: 'sheets.properties(sheetId,title,index)' });
+  const phases = meta.sheets
+    .map(sheet => sheet.properties)
+    .filter(props => props.sheetId >= 10 && props.sheetId < 99)
+    .sort((a, b) => a.index - b.index)
+    .map(props => props.title);
+  if (!phases.length) throw new NotFoundError();
+  const tab = phases.indexOf(tabName) >= 0 ? tabName : phases[0];
+  const quoted = "'" + tab.replace(/'/g, "''") + "'";
+
+  const response = Sheets.Spreadsheets.Values.batchGet(sheetId, {
+    ranges: [quoted + '!A1:AZ4', quoted + '!A5:AZ400'],
+    valueRenderOption: 'UNFORMATTED_VALUE'
+  });
+  const head = response.valueRanges[0].values || [];
+  const body = response.valueRanges[1].values || [];
+  const headers = head[3] || [];
+  const commentsCol = headers.findIndex(value => String(value).indexOf('COMENTARIOS') === 0);
+  const helperCol = name => headers.findIndex((value, index) => index > commentsCol && value === name);
+  const totalCol = helperCol('TOTAL');
+  const rankCol = helperCol('RANK');
+  const statusCol = helperCol('STATUS');
+  const judgeCols = [];
+  for (let col = 3; col < commentsCol; col += 1) {
+    if (String(headers[col] || '').trim()) judgeCols.push(col);
+  }
+
+  const number = value => (typeof value === 'number' ? value : null);
+  const rows = body
+    .filter(row => String(row[2] || '').trim())
+    .map(row => ({
+      delegate: String(row[2]).trim(),
+      scores: judgeCols.map(col => number(row[col])),
+      total: number(row[totalCol]),
+      rank: number(row[rankCol]),
+      status: String(row[statusCol] || '')
+    }))
+    .sort((a, b) => (a.rank === null) - (b.rank === null) || (a.rank || 0) - (b.rank || 0));
+
+  return {
+    ok: true,
+    title: String((head[0] || [])[1] || ''),
+    phase: tab,
+    phases: phases,
+    judgeCount: judgeCols.length,
+    qualify: number((head[2] || [])[3]) || 0,
+    wildcard: number((head[2] || [])[5]) || 0,
+    rows: rows
+  };
 }
 
 function cleanInput(raw) {
@@ -700,7 +792,11 @@ function doPost(e) {
     });
 
     const created = Sheets.Spreadsheets.create(request.createBody);
-    Sheets.Spreadsheets.batchUpdate({ requests: request.batchRequests }, created.spreadsheetId);
+    // The export-image links need the new spreadsheet's id, which only exists now.
+    const requests = request.batchRequests.concat([{
+      findReplace: { find: SHEET_ID_PLACEHOLDER, replacement: created.spreadsheetId, includeFormulas: true, allSheets: true }
+    }]);
+    Sheets.Spreadsheets.batchUpdate({ requests: requests }, created.spreadsheetId);
 
     const file = DriveApp.getFileById(created.spreadsheetId);
     try {

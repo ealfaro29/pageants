@@ -151,7 +151,7 @@ function Dialog({ title, children, onCancel, onConfirm, confirmLabel, cancelLabe
 
 // Static, input-free rendering of one tab used for PNG export. It sits inside the
 // themed root, so it picks up the viewer's light/dark theme and accent colour.
-function ExportCard({ exportRef, sheet, phase, judgeOrder, stats, t }) {
+function ExportCard({ exportRef, sheet, phase, judgeOrder, stats, t, hideJudgeNames }) {
   const rows = [
     ...stats.rankedOrder,
     ...stats.rowOrder.filter(rowId => !stats.rankedOrder.includes(rowId) && hasDelegate(phase.rows[rowId]))
@@ -176,8 +176,8 @@ function ExportCard({ exportRef, sheet, phase, judgeOrder, stats, t }) {
           <tr className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-muted">
             <th className="px-3 py-2 text-center border-b border-app-border">{t.colRank}</th>
             <th className="px-3 py-2 text-left border-b border-app-border">{t.colDelegates}</th>
-            {judgeOrder.map(judgeId => (
-              <th key={judgeId} className="px-3 py-2 text-right border-b border-app-border">{sheet.judges[judgeId]}</th>
+            {judgeOrder.map((judgeId, judgeIndex) => (
+              <th key={judgeId} className="px-3 py-2 text-right border-b border-app-border">{hideJudgeNames ? t.anonymousJudge(judgeIndex + 1) : sheet.judges[judgeId]}</th>
             ))}
             <th className="px-3 py-2 text-right border-b border-app-border">{t.colTotal}</th>
           </tr>
@@ -241,6 +241,9 @@ export default function ScoresheetBoard() {
   const [theme, setTheme] = useState(getStoredScoringTheme());
   const [accentColor, setAccentColor] = useState(getStoredScoringAccent());
   const [isExporting, setIsExporting] = useState(false);
+  const [hideJudgeNames, setHideJudgeNames] = useState(() => {
+    try { return localStorage.getItem('pageants-scoresheet-hide-judges') !== '0'; } catch { return true; }
+  });
   const exportRef = useRef(null);
   const [language, setLanguage] = useState(getStoredScoringLanguage());
   const [linkCopied, setLinkCopied] = useState(false);
@@ -739,6 +742,17 @@ export default function ScoresheetBoard() {
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             {t.downloadImage}
           </button>
+          <label className="inline-flex items-center gap-1.5 h-9 px-1 text-[11px] font-bold uppercase tracking-widest text-app-muted cursor-pointer" title={t.hideJudgesHint}>
+            <input
+              type="checkbox"
+              checked={hideJudgeNames}
+              onChange={event => {
+                setHideJudgeNames(event.target.checked);
+                try { localStorage.setItem('pageants-scoresheet-hide-judges', event.target.checked ? '1' : '0'); } catch { /* per-device preference only */ }
+              }}
+            />
+            {t.hideJudges}
+          </label>
         </div>
 
         {tieNames && (
@@ -945,7 +959,7 @@ export default function ScoresheetBoard() {
       </nav>
 
       {isExporting && (
-        <ExportCard exportRef={exportRef} sheet={sheet} phase={phase} judgeOrder={judgeOrder} stats={stats} t={t} />
+        <ExportCard exportRef={exportRef} sheet={sheet} phase={phase} judgeOrder={judgeOrder} stats={stats} t={t} hideJudgeNames={hideJudgeNames} />
       )}
 
       {dialog && (
