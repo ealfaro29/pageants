@@ -14,9 +14,10 @@ const T = {
   howTitle: 'CÓMO FUNCIONA · HOW IT WORKS',
   how: [
     ['Cambia aquí el nombre de los jueces una sola vez: todos los tabs se actualizan.', 'Rename the judges here once: every tab updates.'],
+    ['Para agregar un juez escribe su nombre en un espacio vacío; para quitarlo borra el nombre (su columna se apaga y deja de sumar).', 'To add a judge type a name in an empty slot; to remove one delete the name (the column turns off and stops counting).'],
     ['Escribe las delegadas en el primer tab. Cada juez escribe en su columna.', 'Type the delegates in the first tab. Each judge types in their own column.'],
     ['La tabla de la izquierda queda en el orden en que escribes. La tabla RANKING de la derecha calcula TOTAL, RANK y ESTADO y se ordena sola.', 'The left table keeps the order you type in. The RANKING table on the right computes TOTAL, RANK and STATUS and sorts itself.'],
-    ['Define CLASIFICAN en cada tab: las clasificadas aparecen solas en el siguiente tab.', 'Set QUALIFY TOP on each tab: the qualified delegates appear in the next tab automatically.'],
+    ['Define CLASIFICAN y WILDCARD en cada tab: las siguientes en el ranking entran como wildcard y todas pasan solas al siguiente tab.', 'Set QUALIFY TOP and WILDCARD on each tab: the next ones in the ranking get in as wildcards and all of them move to the next tab automatically.'],
     ['Las fórmulas están bloqueadas: solo se editan las celdas blancas.', 'Formulas are locked: only the white cells can be edited.'],
     ['Usa punto para decimales (9.5).', 'Use a dot for decimals (9.5).']
   ],
@@ -32,9 +33,13 @@ const T = {
   scoresEntered: 'PUNTAJES · SCORES',
   tie: '⚠ EMPATE EN EL CORTE · TIE AT CUTOFF',
   qualified: '✓ CLASIFICA · QUALIFIED',
+  wildcard: '★ WILDCARD',
+  wildcardLabel: '+ WILDCARD',
   winner: '👑 GANADORA · WINNER',
   runnerUp: rankRef => `(${rankRef}-1)&"ª FINALISTA · "&(${rankRef}-1)&IF(${rankRef}-1=1,"ST",IF(${rankRef}-1=2,"ND",IF(${rankRef}-1=3,"RD","TH")))&" RUNNER-UP"`,
-  scoreHint: 'Número de 0 al máximo de SETUP, con punto decimal (9.5). · Number from 0 to the SETUP max, dot decimals (9.5).',
+  scoreHint: 'Número de 0 al máximo de SETUP, con punto decimal (9.5). Solo jueces con nombre en SETUP. · Number from 0 to the SETUP max, dot decimals (9.5). Only judges named in SETUP.',
+  qualifyHint: 'Cuántas clasifican por rank · How many qualify by rank',
+  wildcardHint: 'Cuántas más entran como wildcard (las siguientes en el ranking) · How many more get in as wildcards (next in the ranking)',
   awardsTitle: 'PREMIOS ESPECIALES · SPECIAL AWARDS',
   award: ['PREMIO', 'AWARD'],
   awardWinner: ['GANADORA', 'WINNER'],
@@ -63,6 +68,9 @@ const COLORS = {
   border: '#e7e5e4',
   tieBg: '#fed7aa',
   tieText: '#9a3412',
+  wildcard: '#a78bfa',
+  wildcardSoft: '#f3e8ff',
+  wildcardText: '#6d28d9',
   warn: '#fb923c'
 };
 
@@ -153,8 +161,16 @@ const AWARDS_ID = 99;
 const SETUP_TITLE_ROW = 4; // 1-based rows of the inputs in SETUP (column C)
 const SETUP_MAX_ROW = 5;
 const SETUP_FIRST_JUDGE_ROW = 8;
+const MIN_JUDGE_SLOTS = 10;
+const MAX_JUDGE_SLOTS = 20;
+
+// Judge columns are created up front: a name in SETUP turns a column on, an empty slot turns it off.
+function judgeSlotCount(judgeCount) {
+  return Math.min(MAX_JUDGE_SLOTS, Math.max(MIN_JUDGE_SLOTS, judgeCount));
+}
 
 function buildSetupSheet({ title, judgeNames, maxScore }) {
+  const slots = judgeSlotCount(judgeNames.length);
   const rows = [];
   const add = (cells, height) => rows.push({ cells, height });
   const dark = fmt({ bg: COLORS.ink });
@@ -172,9 +188,10 @@ function buildSetupSheet({ title, judgeNames, maxScore }) {
   add([blankCell(white), bilingualCell(T.maxScore, label, COLORS.muted), numberCell(maxScore, input), blankCell(white)], 40);
   add([blankCell(white), blankCell(white), blankCell(white), blankCell(white)], 16);
   add([blankCell(white), textCell(T.judges, section), blankCell(section), blankCell(white)], 30);
-  judgeNames.forEach((name, index) => {
-    add([blankCell(white), bilingualCell(T.judgeLabel(index + 1), label, COLORS.muted), textCell(name, input), blankCell(white)], 38);
-  });
+  for (let index = 0; index < slots; index += 1) {
+    const name = judgeNames[index];
+    add([blankCell(white), bilingualCell(T.judgeLabel(index + 1), label, COLORS.muted), name ? textCell(name, input) : blankCell(input), blankCell(white)], 38);
+  }
   add([blankCell(white), blankCell(white), blankCell(white), blankCell(white)], 16);
   const howStart = rows.length;
   add([blankCell(white), textCell(T.howTitle, section), blankCell(section), blankCell(white)], 30);
@@ -204,20 +221,20 @@ function buildSetupSheet({ title, judgeNames, maxScore }) {
     merges,
     protectedRanges: [lockSheet(SETUP_ID, [
       gridRange(SETUP_ID, SETUP_TITLE_ROW - 1, SETUP_MAX_ROW, 2, 3),
-      gridRange(SETUP_ID, SETUP_FIRST_JUDGE_ROW - 1, SETUP_FIRST_JUDGE_ROW - 1 + judgeNames.length, 2, 3)
+      gridRange(SETUP_ID, SETUP_FIRST_JUDGE_ROW - 1, SETUP_FIRST_JUDGE_ROW - 1 + slots, 2, 3)
     ])]
   };
 }
 
 function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst, isLast, judgeCount, rowCount, delegates }) {
-  const J = judgeCount;
+  const S = judgeSlotCount(judgeCount);
   const R = rowCount;
   const E = 4 + R; // last 1-based data row
-  // Score entry table (input order): # | DELEGADA | judges | COMENTARIOS
+  // Score entry table (input order): # | DELEGADA | judge slots | COMENTARIOS
   const NUM = 1;
   const DEL = 2;
   const J0 = 3;
-  const JL = J0 + J - 1;
+  const JL = J0 + S - 1;
   const CM = JL + 1;
   // Hidden helper columns that feed the ranking and the next tab.
   const TOT = CM + 1;
@@ -231,15 +248,24 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   const R_ST = R_TOT + 1;
   const END = R_ST + 1;
   const columnCount = END + 1;
+  // Row-3 controls: QUALIFY TOP input, then (not on the last tab) the WILDCARD input.
+  const Q_IN = J0;
+  const W_LABEL = J0 + 1;
+  const W_IN = J0 + 2;
+  const INFO = J0 + 3;
 
   const L = colLetter;
   const setupRef = quoteSheet(T.setupTab);
   const rankCol = `$${L(RK)}$5:$${L(RK)}$${E}`;
   const totalCol = `$${L(TOT)}$5:$${L(TOT)}$${E}`;
-  const qualifyRef = `$${L(J0)}$3`;
+  const judgeHeaders = `$${L(J0)}$4:$${L(JL)}$4`;
+  const qualifyRef = `$${L(Q_IN)}$3`;
+  const wildcardRef = isLast ? '0' : `N($${L(W_IN)}$3)`;
+  const cutRef = `(${qualifyRef}+${wildcardRef})`;
   const namesCount = `SUMPRODUCT(--(LEN($${L(DEL)}$5:$${L(DEL)}$${E})>0))`;
   const scoresBlock = `$${L(J0)}$5:$${L(JL)}$${E}`;
-  const tieFormula = `AND(${qualifyRef}>0,COUNTIF(${rankCol},"<="&${qualifyRef})>${qualifyRef})`;
+  const activeJudges = `COUNTIF(${judgeHeaders},"?*")`;
+  const tieFormula = `AND(${cutRef}>0,COUNTIF(${rankCol},"<="&${cutRef})>${cutRef})`;
 
   const dark = fmt({ bg: COLORS.ink });
   const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 20 });
@@ -248,6 +274,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   const control = fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, size: 9 });
   const controlLabel = fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9, align: 'RIGHT', padding: pad });
   const controlInput = fmt({ bg: COLORS.white, color: COLORS.ink, bold: true, size: 13, align: 'CENTER', borders: { top: medium(COLORS.gold), bottom: medium(COLORS.gold), left: medium(COLORS.gold), right: medium(COLORS.gold) } });
+  const wildcardInput = fmt({ bg: COLORS.white, color: COLORS.wildcardText, bold: true, size: 13, align: 'CENTER', borders: { top: medium(COLORS.wildcard), bottom: medium(COLORS.wildcard), left: medium(COLORS.wildcard), right: medium(COLORS.wildcard) } });
   const controlInfo = fmt({ bg: COLORS.panel, color: COLORS.gold, bold: true, size: 9, padding: pad });
   const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: { bottom: medium(COLORS.gold) }, padding: pad });
   const resultsHeader = align => fmt({ bg: COLORS.gold, color: COLORS.ink, bold: true, size: 9, align, borders: { bottom: medium(COLORS.ink) }, padding: pad });
@@ -268,31 +295,38 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   // Row 2: phase name, score progress, ranking title.
   const row2 = filled(dark);
   row2[NUM] = textCell(phase.name.toUpperCase(), phaseFmt);
-  row2[CM] = formulaCell(`="${T.scoresEntered}  "&COUNT(${scoresBlock})&" / "&(${namesCount}*${J})`, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT', padding: pad }));
+  row2[CM] = formulaCell(`="${T.scoresEntered}  "&COUNTIFS(${scoresBlock},"<>")&" / "&(${namesCount}*${activeJudges})`, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT', padding: pad }));
   row2[R_RK] = textCell(T.results, sectionGold);
   rows.push(row2);
 
-  // Row 3: qualify control + ranking status (tie warning or auto-sort note).
+  // Row 3: qualify (+ wildcard) controls and the ranking status.
   const row3 = filled(control);
   row3[0] = blankCell(dark);
   row3[GAP] = blankCell(dark);
   row3[END] = blankCell(dark);
   row3[NUM] = textCell(isLast ? T.placements : T.qualifyTop, controlLabel);
-  row3[J0] = numberCell(phase.qualify, controlInput);
-  row3[J0 + 1] = isLast
-    ? formulaCell(`="TOP "&${qualifyRef}`, controlInfo)
-    : formulaCell(`="TOP "&${qualifyRef}&"  →  ${nextPhase.name.toUpperCase()}"`, controlInfo);
+  row3[Q_IN] = numberCell(phase.qualify, controlInput);
+  if (isLast) {
+    row3[W_LABEL] = formulaCell(`="TOP "&${qualifyRef}`, controlInfo);
+  } else {
+    row3[W_LABEL] = textCell(T.wildcardLabel, fmt({ bg: COLORS.panel, color: COLORS.wildcard, bold: true, size: 9, align: 'RIGHT', padding: pad }));
+    row3[W_IN] = numberCell(0, wildcardInput);
+    row3[INFO] = formulaCell(
+      `="TOP "&${qualifyRef}&IF(${wildcardRef}>0,"  +  "&${wildcardRef}&" WILDCARD","")&"   →   "&COUNTIF(${rankCol},"<="&${cutRef})&"  ·  ${nextPhase.name.toUpperCase()}"`,
+      controlInfo
+    );
+  }
   row3[R_RK] = formulaCell(
     `=IF(${tieFormula},"${T.tie}","${T.autoRanking}")`,
     fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, bold: true, size: 9, padding: pad })
   );
   rows.push(row3);
 
-  // Row 4: headers.
+  // Row 4: headers. Judge headers come from SETUP; an empty slot means the column is off.
   const row4 = filled(fmt());
   row4[NUM] = textCell('#', header('CENTER'));
   row4[DEL] = bilingualCell(T.colDelegate, header('LEFT'), COLORS.mutedOnDark);
-  for (let j = 0; j < J; j += 1) {
+  for (let j = 0; j < S; j += 1) {
     row4[J0 + j] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_FIRST_JUDGE_ROW + j})`, header('CENTER'));
   }
   row4[CM] = bilingualCell(T.colComments, header('LEFT'), COLORS.mutedOnDark);
@@ -306,6 +340,8 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   rows.push(row4);
 
   const prevRef = prevPhase ? quoteSheet(prevPhase.name.toUpperCase()) : null;
+  // Previous tab always has the same layout and is never the last tab, so it has a wildcard input.
+  const prevCut = prevRef ? `(${prevRef}!${qualifyRef}+N(${prevRef}!$${L(W_IN)}$3))` : null;
   const rankingArray = `{${L(RK)}5:${L(RK)}${E},${L(DEL)}5:${L(DEL)}${E},${L(TOT)}5:${L(TOT)}${E},${L(ST)}5:${L(ST)}${E}}`;
 
   for (let i = 0; i < R; i += 1) {
@@ -318,23 +354,24 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
       cells[DEL] = name ? textCell(name, inputFmt('LEFT', { bold: true })) : blankCell(inputFmt('LEFT', { bold: true }));
     } else if (i === 0) {
       cells[DEL] = formulaCell(
-        `=IFERROR(FILTER(${prevRef}!$${L(DEL)}$5:$${L(DEL)}$${E},${prevRef}!${rankCol}<>"",${prevRef}!${rankCol}<=${prevRef}!${qualifyRef}),"")`,
+        `=IFERROR(FILTER(${prevRef}!$${L(DEL)}$5:$${L(DEL)}$${E},${prevRef}!${rankCol}<>"",${prevRef}!${rankCol}<=${prevCut}),"")`,
         formulaFmt('LEFT', { bold: true })
       );
     } else {
       cells[DEL] = blankCell(formulaFmt('LEFT', { bold: true }));
     }
 
-    for (let j = 0; j < J; j += 1) cells[J0 + j] = blankCell(inputFmt('CENTER', { size: 11 }));
+    for (let j = 0; j < S; j += 1) cells[J0 + j] = blankCell(inputFmt('CENTER', { size: 11 }));
     cells[CM] = blankCell(inputFmt('LEFT', { size: 9, wrap: true }));
 
+    // Only judges with a name in SETUP count toward the total.
     const scoreRange = `${L(J0)}${r}:${L(JL)}${r}`;
     const rankRef = `${L(RK)}${r}`;
-    cells[TOT] = formulaCell(`=IF(OR(${L(DEL)}${r}="",COUNT(${scoreRange})=0),"",SUM(${scoreRange}))`, hiddenFmt);
+    cells[TOT] = formulaCell(`=IF(OR(${L(DEL)}${r}="",COUNTIFS(${judgeHeaders},"?*",${scoreRange},"<>")=0),"",SUMIF(${judgeHeaders},"?*",${scoreRange}))`, hiddenFmt);
     cells[RK] = formulaCell(`=IF(${L(TOT)}${r}="","",RANK(${L(TOT)}${r},${totalCol},0))`, hiddenFmt);
     cells[ST] = formulaCell(isLast
       ? `=IF(${rankRef}="","",IF(${rankRef}=1,"${T.winner}",IF(${rankRef}<=${qualifyRef},${T.runnerUp(rankRef)},"")))`
-      : `=IF(${rankRef}="","",IF(${rankRef}<=${qualifyRef},"${T.qualified}",""))`, hiddenFmt);
+      : `=IF(${rankRef}="","",IF(${rankRef}<=${qualifyRef},"${T.qualified}",IF(${rankRef}<=${cutRef},"${T.wildcard}","")))`, hiddenFmt);
 
     // Ranking: unscored delegates go to the bottom (blank rank sorts after numbers).
     cells[R_RK] = i === 0
@@ -352,7 +389,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   width(0, 16);
   width(NUM, 40);
   width(DEL, 230);
-  for (let j = 0; j < J; j += 1) width(J0 + j, 86);
+  for (let j = 0; j < S; j += 1) width(J0 + j, 86);
   width(CM, 240);
   width(TOT, 70, true);
   width(RK, 50, true);
@@ -366,12 +403,16 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
 
   const dataRows = [4, E];
   const rRank = `$${L(R_RK)}5`;
+  const judgeCell = `${L(J0)}5`;
+  const judgeOn = `LEN(${L(J0)}$4)>0`;
   const conditionalFormats = [
-    customRule([gridRange(sheetId, ...dataRows, J0, JL + 1)], `=AND($${L(DEL)}5<>"",${L(J0)}5="")`, bg(COLORS.missing)),
-    // Tie at the cutoff on the ranking.
+    // Judge slot without a name in SETUP: column off.
+    customRule([gridRange(sheetId, ...dataRows, J0, JL + 1)], `=NOT(${judgeOn})`, bg(COLORS.formulaBg)),
+    customRule([gridRange(sheetId, ...dataRows, J0, JL + 1)], `=AND($${L(DEL)}5<>"",${judgeCell}="",${judgeOn})`, bg(COLORS.missing)),
+    // Tie at the final cut (qualifiers + wildcards).
     customRule(
       [gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)],
-      `=AND(${rRank}<>"",${rRank}<=${qualifyRef},${rRank}+COUNTIF(${rankCol},${rRank})-1>${qualifyRef})`,
+      `=AND(${rRank}<>"",${rRank}<=${cutRef},${rRank}+COUNTIF(${rankCol},${rRank})-1>${cutRef})`,
       { ...bg(COLORS.tieBg), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.tieText) } } }
     ),
     customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=${rRank}=1`, { ...bg(COLORS.gold), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.ink) } } }),
@@ -382,9 +423,15 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
     conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=${rRank}=1`, { ...bg(COLORS.goldMid), textFormat: { bold: true } }));
   }
   conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=AND(${rRank}<>"",${rRank}<=${qualifyRef})`, bg(COLORS.goldSoft)));
-  // Light gold on the entry rows that qualify, so judges see the cut without moving rows.
   conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, NUM, DEL + 1)], `=AND($${L(RK)}5<>"",$${L(RK)}5<=${qualifyRef})`, bg(COLORS.goldSoft)));
-  // Tie warning text in orange.
+  if (!isLast) {
+    conditionalFormats.push(customRule(
+      [gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)],
+      `=AND(${rRank}<>"",${rRank}>${qualifyRef},${rRank}<=${cutRef})`,
+      { ...bg(COLORS.wildcardSoft), textFormat: { foregroundColorStyle: { rgbColor: rgb(COLORS.wildcardText) } } }
+    ));
+    conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, NUM, DEL + 1)], `=AND($${L(RK)}5<>"",$${L(RK)}5>${qualifyRef},$${L(RK)}5<=${cutRef})`, bg(COLORS.wildcardSoft)));
+  }
   conditionalFormats.push(customRule([gridRange(sheetId, 2, 3, R_RK, R_ST + 1)], `=${tieFormula}`, { textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.warn) } } }));
 
   const bandedRanges = [{
@@ -393,20 +440,45 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   }];
 
   const unprotected = [
-    gridRange(sheetId, 2, 3, J0, J0 + 1),
+    gridRange(sheetId, 2, 3, Q_IN, Q_IN + 1),
     gridRange(sheetId, ...dataRows, J0, JL + 1),
     gridRange(sheetId, ...dataRows, CM, CM + 1)
   ];
+  if (!isLast) unprotected.push(gridRange(sheetId, 2, 3, W_IN, W_IN + 1));
   if (isFirst) unprotected.push(gridRange(sheetId, ...dataRows, DEL, DEL + 1));
 
   const merges = [
     gridRange(sheetId, 0, 1, NUM, CM + 1),
     gridRange(sheetId, 1, 2, NUM, CM),
     gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
-    gridRange(sheetId, 2, 3, NUM, J0),
-    gridRange(sheetId, 2, 3, R_RK, R_ST + 1)
+    gridRange(sheetId, 2, 3, NUM, Q_IN),
+    gridRange(sheetId, 2, 3, R_RK, R_ST + 1),
+    isLast ? gridRange(sheetId, 2, 3, W_LABEL, CM + 1) : gridRange(sheetId, 2, 3, INFO, CM + 1)
   ];
-  if (CM - (J0 + 1) + 1 > 1) merges.push(gridRange(sheetId, 2, 3, J0 + 1, CM + 1));
+
+  const numberRule = (range, message) => ({
+    setDataValidation: {
+      range,
+      rule: { condition: { type: 'NUMBER_GREATER_THAN_EQ', values: [{ userEnteredValue: '0' }] }, inputMessage: message, strict: true }
+    }
+  });
+  const validations = [
+    {
+      setDataValidation: {
+        range: gridRange(sheetId, ...dataRows, J0, JL + 1),
+        rule: {
+          condition: {
+            type: 'CUSTOM_FORMULA',
+            values: [{ userEnteredValue: `=AND(${judgeOn},ISNUMBER(${judgeCell}),${judgeCell}>=0,${judgeCell}<=INDIRECT("${quoteSheet(T.setupTab)}!C${SETUP_MAX_ROW}"))` }]
+          },
+          inputMessage: T.scoreHint,
+          strict: true
+        }
+      }
+    },
+    numberRule(gridRange(sheetId, 2, 3, Q_IN, Q_IN + 1), T.qualifyHint)
+  ];
+  if (!isLast) validations.push(numberRule(gridRange(sheetId, 2, 3, W_IN, W_IN + 1), T.wildcardHint));
 
   return {
     sheet: {
@@ -429,19 +501,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
       bandedRanges,
       protectedRanges: [lockSheet(sheetId, unprotected)]
     },
-    validations: [{
-      setDataValidation: {
-        range: gridRange(sheetId, ...dataRows, J0, JL + 1),
-        rule: {
-          condition: {
-            type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: `=AND(ISNUMBER(${L(J0)}5),${L(J0)}5>=0,${L(J0)}5<=INDIRECT("${quoteSheet(T.setupTab)}!C${SETUP_MAX_ROW}"))` }]
-          },
-          inputMessage: T.scoreHint,
-          strict: true
-        }
-      }
-    }]
+    validations
   };
 }
 
