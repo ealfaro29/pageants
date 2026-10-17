@@ -26,7 +26,6 @@ const T = {
   colStatus: ['ESTADO', 'STATUS'],
   colComments: ['COMENTARIOS', 'COMMENTS'],
   results: 'RESULTADOS · RESULTS',
-  scoring: 'PUNTAJES · SCORING',
   sortByRank: ['ORDENAR POR RANK · SORT BY RANK', '   se ordena solo al completar · auto when complete'],
   qualifyTop: 'CLASIFICAN · QUALIFY TOP',
   placements: 'POSICIONES · PLACEMENTS',
@@ -283,7 +282,7 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   // Row 2: phase name / section titles.
   const row2 = filled(dark);
   row2[NUM] = textCell(phase.name.toUpperCase(), phaseFmt);
-  row2[ST] = textCell(T.scoring, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT' }));
+  row2[CM] = formulaCell(`="${T.scoresEntered}  "&COUNT(${scoresBlock})&" / "&(${namesCount}*${J})`, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT', padding: pad }));
   row2[R_RK] = textCell(T.results, sectionGold);
   rows.push(row2);
 
@@ -298,7 +297,6 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
     ? formulaCell(`="TOP "&${qualifyRef}`, controlInfo)
     : formulaCell(`="TOP "&${qualifyRef}&"  →  ${nextPhase.name.toUpperCase()}"`, controlInfo);
   row3[ST] = formulaCell(`=IF(AND(${qualifyRef}>0,COUNTIF(${rankCol},"<="&${qualifyRef})>${qualifyRef}),"${T.tie}","")`, controlWarn);
-  row3[CM] = formulaCell(`="${T.scoresEntered}  "&COUNT(${scoresBlock})&" / "&(${namesCount}*${J})`, fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, size: 9, align: 'RIGHT', padding: pad }));
   row3[R_RK] = boolCell(false, checkbox);
   row3[R_DEL] = splitToneCell(T.sortByRank, fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9 }), COLORS.mutedOnDark);
   rows.push(row3);
@@ -419,10 +417,11 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
 
   const merges = [
     gridRange(sheetId, 0, 1, NUM, CM + 1),
-    gridRange(sheetId, 1, 2, NUM, ST),
+    gridRange(sheetId, 1, 2, NUM, CM),
     gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
     gridRange(sheetId, 2, 3, NUM, J0),
     gridRange(sheetId, 2, 3, J0 + 1, ST),
+    gridRange(sheetId, 2, 3, ST, CM + 1),
     gridRange(sheetId, 2, 3, R_DEL, R_ST + 1)
   ];
 
