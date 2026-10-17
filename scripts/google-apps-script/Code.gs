@@ -13,103 +13,70 @@
  * After pasting a newer version: Deploy → Manage deployments → edit → Version: New.
  */
 
-// Builds the Google Sheets API request for the improved scoresheet layout.
+// Builds the Google Sheets API request for the scoresheet layout (bilingual ES / EN).
 // This file must stay dependency-free: scripts/build-apps-script.mjs bundles it into the
 // Google Apps Script web app (scripts/google-apps-script/Code.gs) that creates the sheets.
 
-const SHEET_COPY = {
-  en: {
-    setupTab: 'SETUP',
-    awardsTab: 'AWARDS',
-    setupTitle: 'SCORESHEET SETUP',
-    pageantName: 'Pageant name',
-    maxScore: 'Max score per judge',
-    judges: 'JUDGES',
-    judgeLabel: number => `Judge ${number}`,
-    howTitle: 'HOW IT WORKS',
-    how: [
-      'Rename the judges here once: every tab updates.',
-      'Type the delegates in column B of the first tab. Judges type their scores in their own column.',
-      'TOTAL and RANK update automatically. The LIVE RANKING panel on the right is always sorted.',
-      'Set QUALIFY TOP on each tab: the qualified delegates appear in the next tab automatically.',
-      'Finish a phase before scoring the next one: changing earlier scores can change who qualifies.',
-      'Grey cells are formulas. Use a dot for decimals (9.5).'
-    ],
-    colDelegate: 'DELEGATE',
-    colTotal: 'TOTAL',
-    colRank: 'RANK',
-    colStatus: 'STATUS',
-    colComments: 'COMMENTS',
-    liveRanking: 'LIVE RANKING',
-    qualifyTop: 'QUALIFY TOP',
-    placements: 'PLACEMENTS',
-    advanceTo: name => `advance to ${name}`,
-    finalPlacements: 'final placements',
-    scoresEntered: 'Scores entered',
-    tie: '⚠ TIE AT THE CUTOFF',
-    qualified: '✓ QUALIFIED',
-    winner: '👑 WINNER',
-    runnerUp: rankRef => `(${rankRef}-1)&IF(${rankRef}-1=1,"ST",IF(${rankRef}-1=2,"ND",IF(${rankRef}-1=3,"RD","TH")))&" RUNNER-UP"`,
-    scoreHint: 'Enter a number from 0 to the max score in SETUP. Use a dot for decimals (9.5).',
-    awardsTitle: 'SPECIAL AWARDS',
-    award: 'AWARD',
-    awardWinner: 'WINNER',
-    protectedNote: 'Formula cells'
-  },
-  es: {
-    setupTab: 'CONFIGURACIÓN',
-    awardsTab: 'PREMIOS',
-    setupTitle: 'CONFIGURACIÓN DEL SCORESHEET',
-    pageantName: 'Nombre del certamen',
-    maxScore: 'Puntaje máximo por juez',
-    judges: 'JUECES',
-    judgeLabel: number => `Juez ${number}`,
-    howTitle: 'CÓMO FUNCIONA',
-    how: [
-      'Cambia aquí el nombre de los jueces una sola vez: todos los tabs se actualizan.',
-      'Escribe las delegadas en la columna B del primer tab. Cada juez escribe en su columna.',
-      'TOTAL y RANK se calculan solos. El panel LIVE RANKING de la derecha siempre está ordenado.',
-      'Define CLASIFICAN en cada tab: las clasificadas aparecen solas en el siguiente tab.',
-      'Termina una fase antes de calificar la siguiente: cambiar puntajes anteriores puede cambiar quién clasifica.',
-      'Las celdas grises son fórmulas. Usa punto para decimales (9.5).'
-    ],
-    colDelegate: 'DELEGADA',
-    colTotal: 'TOTAL',
-    colRank: 'RANK',
-    colStatus: 'ESTADO',
-    colComments: 'COMENTARIOS',
-    liveRanking: 'LIVE RANKING',
-    qualifyTop: 'CLASIFICAN',
-    placements: 'POSICIONES',
-    advanceTo: name => `pasan a ${name}`,
-    finalPlacements: 'posiciones finales',
-    scoresEntered: 'Puntajes ingresados',
-    tie: '⚠ EMPATE EN EL CORTE',
-    qualified: '✓ CLASIFICA',
-    winner: '👑 GANADORA',
-    runnerUp: rankRef => `(${rankRef}-1)&"ª FINALISTA"`,
-    scoreHint: 'Ingresa un número de 0 al puntaje máximo de CONFIGURACIÓN. Usa punto para decimales (9.5).',
-    awardsTitle: 'PREMIOS ESPECIALES',
-    award: 'PREMIO',
-    awardWinner: 'GANADORA',
-    protectedNote: 'Celdas con fórmula'
-  }
+const T = {
+  setupTab: '⚙ SETUP',
+  awardsTab: '🏆 PREMIOS · AWARDS',
+  brand: 'PAGEANTS SCORESHEET',
+  setupSubtitle: ['Configuración', 'Setup'],
+  pageantName: ['Nombre del certamen', 'Pageant name'],
+  maxScore: ['Puntaje máximo por juez', 'Max score per judge'],
+  judges: 'JUECES · JUDGES',
+  judgeLabel: number => [`Juez ${number}`, `Judge ${number}`],
+  howTitle: 'CÓMO FUNCIONA · HOW IT WORKS',
+  how: [
+    ['Cambia aquí el nombre de los jueces una sola vez: todos los tabs se actualizan.', 'Rename the judges here once: every tab updates.'],
+    ['Escribe las delegadas en el primer tab. Cada juez escribe en su columna.', 'Type the delegates in the first tab. Each judge types in their own column.'],
+    ['TOTAL y RANK se calculan solos. Marca ORDENAR POR RANK para ver los resultados ordenados (se ordenan solos al completar los puntajes).', 'TOTAL and RANK are automatic. Tick SORT BY RANK to sort the results (they sort themselves once every score is in).'],
+    ['Define CLASIFICAN en cada tab: las clasificadas aparecen solas en el siguiente tab.', 'Set QUALIFY TOP on each tab: the qualified delegates appear in the next tab automatically.'],
+    ['Las fórmulas están bloqueadas: solo se editan las celdas blancas.', 'Formulas are locked: only the white cells can be edited.'],
+    ['Usa punto para decimales (9.5).', 'Use a dot for decimals (9.5).']
+  ],
+  colDelegate: ['DELEGADA', 'DELEGATE'],
+  colTotal: ['TOTAL', 'TOTAL'],
+  colRank: ['RANK', 'RANK'],
+  colStatus: ['ESTADO', 'STATUS'],
+  colComments: ['COMENTARIOS', 'COMMENTS'],
+  results: 'RESULTADOS · RESULTS',
+  scoring: 'PUNTAJES · SCORING',
+  sortByRank: ['ORDENAR POR RANK · SORT BY RANK', '   se ordena solo al completar · auto when complete'],
+  qualifyTop: 'CLASIFICAN · QUALIFY TOP',
+  placements: 'POSICIONES · PLACEMENTS',
+  scoresEntered: 'PUNTAJES · SCORES',
+  tie: '⚠ EMPATE EN EL CORTE · TIE AT CUTOFF',
+  qualified: '✓ CLASIFICA · QUALIFIED',
+  winner: '👑 GANADORA · WINNER',
+  runnerUp: rankRef => `(${rankRef}-1)&"ª FINALISTA · "&(${rankRef}-1)&IF(${rankRef}-1=1,"ST",IF(${rankRef}-1=2,"ND",IF(${rankRef}-1=3,"RD","TH")))&" RUNNER-UP"`,
+  scoreHint: 'Número de 0 al máximo de SETUP, con punto decimal (9.5). · Number from 0 to the SETUP max, dot decimals (9.5).',
+  awardsTitle: 'PREMIOS ESPECIALES · SPECIAL AWARDS',
+  award: ['PREMIO', 'AWARD'],
+  awardWinner: ['GANADORA', 'WINNER'],
+  locked: 'Fórmulas bloqueadas · Locked formulas'
 };
 
+const FONT = 'Montserrat';
+
 const COLORS = {
-  ink: '#09090b',
-  panel: '#18181b',
-  header: '#27272a',
+  ink: '#0b0b0c',
+  panel: '#161618',
+  header: '#232326',
   gold: '#fbbf24',
-  goldSoft: '#fef3c7',
-  goldStrong: '#fde68a',
+  goldText: '#a16207',
+  goldSoft: '#fef6dc',
+  goldMid: '#fce7a6',
+  silver: '#e5e7eb',
+  bronze: '#f1d3b5',
   white: '#ffffff',
-  text: '#18181b',
-  muted: '#71717a',
+  band: '#fafaf9',
+  text: '#1c1917',
+  muted: '#78716c',
   mutedOnDark: '#a1a1aa',
-  formulaBg: '#f4f4f5',
-  missing: '#f1f1f3',
-  border: '#e4e4e7',
+  formulaBg: '#f5f5f4',
+  missing: '#f0efed',
+  border: '#e7e5e4',
   tieBg: '#fed7aa',
   tieText: '#9a3412',
   warn: '#fb923c'
@@ -139,10 +106,10 @@ function quoteSheet(name) {
   return `'${String(name).replace(/'/g, "''")}'`;
 }
 
-function fmt({ bg, color, bold, size = 10, align, valign = 'MIDDLE', pattern, wrap, borders, italic } = {}) {
+function fmt({ bg, color, bold, size = 10, align, valign = 'MIDDLE', pattern, wrap, borders, italic, padding } = {}) {
   const format = {
     verticalAlignment: valign,
-    textFormat: { fontFamily: 'Inter', fontSize: size, bold: Boolean(bold), italic: Boolean(italic) },
+    textFormat: { fontFamily: FONT, fontSize: size, bold: Boolean(bold), italic: Boolean(italic) },
     wrapStrategy: wrap ? 'WRAP' : 'OVERFLOW_CELL'
   };
   if (bg) format.backgroundColorStyle = { rgbColor: rgb(bg) };
@@ -150,17 +117,45 @@ function fmt({ bg, color, bold, size = 10, align, valign = 'MIDDLE', pattern, wr
   if (align) format.horizontalAlignment = align;
   if (pattern) format.numberFormat = { type: 'NUMBER', pattern };
   if (borders) format.borders = borders;
+  if (padding) format.padding = padding;
   return format;
 }
 
 const thin = color => ({ style: 'SOLID', colorStyle: { rgbColor: rgb(color) } });
 const medium = color => ({ style: 'SOLID_MEDIUM', colorStyle: { rgbColor: rgb(color) } });
-const cellBorders = { bottom: thin(COLORS.border), right: thin(COLORS.border) };
+const rowBorder = { bottom: thin(COLORS.border) };
+const pad = { left: 8, right: 8 };
 
 const textCell = (value, format) => ({ userEnteredValue: { stringValue: String(value) }, userEnteredFormat: format });
 const formulaCell = (formula, format) => ({ userEnteredValue: { formulaValue: formula }, userEnteredFormat: format });
 const numberCell = (value, format) => ({ userEnteredValue: { numberValue: value }, userEnteredFormat: format });
+const boolCell = (value, format) => ({ userEnteredValue: { boolValue: value }, userEnteredFormat: format });
 const blankCell = format => ({ userEnteredFormat: format });
+
+// Two-line bilingual label: Spanish on top, English smaller and muted underneath.
+function bilingualCell([es, en], format, enColor) {
+  const text = `${es}\n${en}`;
+  return {
+    userEnteredValue: { stringValue: text },
+    userEnteredFormat: { ...format, wrapStrategy: 'WRAP' },
+    textFormatRuns: [
+      { startIndex: 0 },
+      { startIndex: es.length + 1, format: { bold: false, fontSize: Math.max(7, (format.textFormat?.fontSize || 10) - 2), foregroundColorStyle: { rgbColor: rgb(enColor) } } }
+    ]
+  };
+}
+
+// One line with a muted tail: "MAIN   tail".
+function splitToneCell([main, tail], format, tailColor) {
+  return {
+    userEnteredValue: { stringValue: main + tail },
+    userEnteredFormat: format,
+    textFormatRuns: [
+      { startIndex: 0 },
+      { startIndex: main.length, format: { bold: false, italic: true, foregroundColorStyle: { rgbColor: rgb(tailColor) } } }
+    ]
+  };
+}
 
 function gridRange(sheetId, startRow, endRow, startCol, endCol) {
   return { sheetId, startRowIndex: startRow, endRowIndex: endRow, startColumnIndex: startCol, endColumnIndex: endCol };
@@ -176,44 +171,56 @@ function customRule(ranges, formula, format) {
   };
 }
 
+function lockSheet(sheetId, unprotectedRanges) {
+  return { range: { sheetId }, description: T.locked, warningOnly: false, unprotectedRanges };
+}
+
+const bg = hex => ({ backgroundColorStyle: { rgbColor: rgb(hex) } });
+
 const SETUP_ID = 1;
 const AWARDS_ID = 99;
-const SETUP_TITLE_ROW = 3; // 1-based row of the pageant name in SETUP
-const SETUP_MAX_ROW = 4;
-const SETUP_FIRST_JUDGE_ROW = 7;
+const SETUP_TITLE_ROW = 4; // 1-based rows of the inputs in SETUP (column C)
+const SETUP_MAX_ROW = 5;
+const SETUP_FIRST_JUDGE_ROW = 8;
 
-function buildSetupSheet({ copy, title, judgeNames, maxScore }) {
+function buildSetupSheet({ title, judgeNames, maxScore }) {
   const rows = [];
-  const darkRow = (cells, height) => ({ cells, height });
-  const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 16 });
-  const label = fmt({ color: COLORS.text, bold: true, size: 10, borders: { bottom: thin(COLORS.border) } });
-  const input = fmt({ bg: COLORS.white, color: COLORS.text, bold: true, size: 11, borders: { bottom: medium(COLORS.gold), top: thin(COLORS.border), left: thin(COLORS.border), right: thin(COLORS.border) } });
-  const section = fmt({ bg: COLORS.panel, color: COLORS.gold, bold: true, size: 9 });
+  const add = (cells, height) => rows.push({ cells, height });
+  const dark = fmt({ bg: COLORS.ink });
+  const brand = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 20 });
+  const sub = fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, size: 10 });
+  const label = fmt({ color: COLORS.text, bold: true, size: 10, borders: rowBorder, padding: pad });
+  const input = fmt({ bg: COLORS.white, color: COLORS.text, bold: true, size: 12, borders: { bottom: medium(COLORS.gold), top: thin(COLORS.border), left: thin(COLORS.border), right: thin(COLORS.border) }, padding: pad });
+  const section = fmt({ bg: COLORS.panel, color: COLORS.gold, bold: true, size: 9, padding: pad });
+  const white = fmt({ bg: COLORS.white });
 
-  rows.push(darkRow([textCell(`⚙  ${copy.setupTitle}`, banner), blankCell(banner)], 46));
-  rows.push(darkRow([blankCell(fmt()), blankCell(fmt())], 14));
-  rows.push(darkRow([textCell(copy.pageantName, label), textCell(title, input)], 32));
-  rows.push(darkRow([textCell(copy.maxScore, label), numberCell(maxScore, input)], 32));
-  rows.push(darkRow([blankCell(fmt()), blankCell(fmt())], 14));
-  rows.push(darkRow([textCell(copy.judges, section), blankCell(section)], 28));
+  add([blankCell(dark), textCell(T.brand, brand), blankCell(dark), blankCell(dark)], 58);
+  add([blankCell(dark), bilingualCell(T.setupSubtitle, sub, COLORS.mutedOnDark), blankCell(dark), blankCell(dark)], 34);
+  add([blankCell(white), blankCell(white), blankCell(white), blankCell(white)], 16);
+  add([blankCell(white), bilingualCell(T.pageantName, label, COLORS.muted), textCell(title, input), blankCell(white)], 40);
+  add([blankCell(white), bilingualCell(T.maxScore, label, COLORS.muted), numberCell(maxScore, input), blankCell(white)], 40);
+  add([blankCell(white), blankCell(white), blankCell(white), blankCell(white)], 16);
+  add([blankCell(white), textCell(T.judges, section), blankCell(section), blankCell(white)], 30);
   judgeNames.forEach((name, index) => {
-    rows.push(darkRow([textCell(copy.judgeLabel(index + 1), label), textCell(name, input)], 30));
+    add([blankCell(white), bilingualCell(T.judgeLabel(index + 1), label, COLORS.muted), textCell(name, input), blankCell(white)], 38);
   });
-  rows.push(darkRow([blankCell(fmt()), blankCell(fmt())], 14));
+  add([blankCell(white), blankCell(white), blankCell(white), blankCell(white)], 16);
   const howStart = rows.length;
-  rows.push(darkRow([textCell(copy.howTitle, section), blankCell(section)], 28));
-  copy.how.forEach((line, index) => {
-    rows.push(darkRow([textCell(`${index + 1}.  ${line}`, fmt({ color: COLORS.text, size: 10, wrap: true })), blankCell(fmt())], 40));
+  add([blankCell(white), textCell(T.howTitle, section), blankCell(section), blankCell(white)], 30);
+  T.how.forEach((line, index) => {
+    const cell = bilingualCell([`${index + 1}.  ${line[0]}`, `     ${line[1]}`], fmt({ color: COLORS.text, size: 10, wrap: true, borders: rowBorder, padding: pad }), COLORS.muted);
+    add([blankCell(white), cell, blankCell(white), blankCell(white)], 50);
   });
 
-  const merges = copy.how.map((_, index) => gridRange(SETUP_ID, howStart + 1 + index, howStart + 2 + index, 0, 2));
+  const merges = [gridRange(SETUP_ID, howStart, howStart + 1, 1, 3), gridRange(SETUP_ID, SETUP_FIRST_JUDGE_ROW - 2, SETUP_FIRST_JUDGE_ROW - 1, 1, 3)];
+  T.how.forEach((_, index) => merges.push(gridRange(SETUP_ID, howStart + 1 + index, howStart + 2 + index, 1, 3)));
 
   return {
     properties: {
       sheetId: SETUP_ID,
-      title: copy.setupTab,
+      title: T.setupTab,
       index: 0,
-      gridProperties: { rowCount: rows.length + 2, columnCount: 3, hideGridlines: true },
+      gridProperties: { rowCount: rows.length + 2, columnCount: 4, hideGridlines: true },
       tabColorStyle: { rgbColor: rgb(COLORS.header) }
     },
     data: [{
@@ -221,170 +228,217 @@ function buildSetupSheet({ copy, title, judgeNames, maxScore }) {
       startColumn: 0,
       rowData: rows.map(row => ({ values: row.cells })),
       rowMetadata: rows.map(row => ({ pixelSize: row.height })),
-      columnMetadata: [{ pixelSize: 240 }, { pixelSize: 380 }, { pixelSize: 40 }]
+      columnMetadata: [{ pixelSize: 24 }, { pixelSize: 270 }, { pixelSize: 380 }, { pixelSize: 24 }]
     }],
-    merges
+    merges,
+    protectedRanges: [lockSheet(SETUP_ID, [
+      gridRange(SETUP_ID, SETUP_TITLE_ROW - 1, SETUP_MAX_ROW, 2, 3),
+      gridRange(SETUP_ID, SETUP_FIRST_JUDGE_ROW - 1, SETUP_FIRST_JUDGE_ROW - 1 + judgeNames.length, 2, 3)
+    ])]
   };
 }
 
-function buildPhaseSheet({ copy, sheetId, index, phase, prevPhase, nextPhase, isFirst, isLast, judgeCount, rowCount, delegates }) {
+function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst, isLast, judgeCount, rowCount, delegates }) {
   const J = judgeCount;
   const R = rowCount;
   const E = 4 + R; // last 1-based data row
-  const T = 2 + J; // total
-  const RK = T + 1; // rank
-  const ST = T + 2; // status
-  const CM = T + 3; // comments
-  const GAP = T + 4;
-  const P0 = T + 5; // live ranking
-  const P2 = T + 7;
-  const columnCount = P2 + 1;
+  // Score entry table
+  const NUM = 1;
+  const DEL = 2;
+  const J0 = 3;
+  const JL = J0 + J - 1;
+  const TOT = JL + 1;
+  const RK = TOT + 1;
+  const ST = RK + 1;
+  const CM = ST + 1;
+  // Results table
+  const GAP = CM + 1;
+  const R_RK = GAP + 1;
+  const R_DEL = R_RK + 1;
+  const R_J0 = R_DEL + 1;
+  const R_TOT = R_J0 + J;
+  const R_ST = R_TOT + 1;
+  const END = R_ST + 1;
+  const columnCount = END + 1;
+
   const L = colLetter;
-  const setupRef = quoteSheet(copy.setupTab);
+  const setupRef = quoteSheet(T.setupTab);
   const rankCol = `$${L(RK)}$5:$${L(RK)}$${E}`;
-  const totalCol = `$${L(T)}$5:$${L(T)}$${E}`;
+  const totalCol = `$${L(TOT)}$5:$${L(TOT)}$${E}`;
+  const qualifyRef = `$${L(J0)}$3`;
+  const sortRef = `$${L(R_RK)}$3`;
+  const namesCount = `SUMPRODUCT(--(LEN($${L(DEL)}$5:$${L(DEL)}$${E})>0))`;
+  const scoresBlock = `$${L(J0)}$5:$${L(JL)}$${E}`;
 
-  const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 18 });
-  const titleFmt = fmt({ bg: COLORS.ink, color: COLORS.white, bold: true, size: 14 });
-  const titleGold = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 9 });
+  const dark = fmt({ bg: COLORS.ink });
+  const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 20 });
+  const phaseFmt = fmt({ bg: COLORS.ink, color: COLORS.white, bold: true, size: 15 });
+  const sectionGold = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 10 });
   const control = fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, size: 9 });
-  const controlLabel = fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9 });
-  const controlInput = fmt({ bg: COLORS.white, color: COLORS.ink, bold: true, size: 12, align: 'CENTER', borders: { top: medium(COLORS.gold), bottom: medium(COLORS.gold), left: medium(COLORS.gold), right: medium(COLORS.gold) } });
-  const controlWarn = fmt({ bg: COLORS.panel, color: COLORS.warn, bold: true, size: 9 });
-  const headerBorders = { bottom: medium(COLORS.gold) };
-  const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: headerBorders });
-  const panelHeader = align => fmt({ bg: COLORS.gold, color: COLORS.ink, bold: true, size: 9, align, borders: headerBorders });
+  const controlLabel = fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9, align: 'RIGHT', padding: pad });
+  const controlInput = fmt({ bg: COLORS.white, color: COLORS.ink, bold: true, size: 13, align: 'CENTER', borders: { top: medium(COLORS.gold), bottom: medium(COLORS.gold), left: medium(COLORS.gold), right: medium(COLORS.gold) } });
+  const controlInfo = fmt({ bg: COLORS.panel, color: COLORS.gold, bold: true, size: 9, padding: pad });
+  const controlWarn = fmt({ bg: COLORS.panel, color: COLORS.warn, bold: true, size: 9, padding: pad });
+  const checkbox = fmt({ bg: COLORS.panel, color: COLORS.gold, align: 'CENTER', size: 12 });
+  const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: { bottom: medium(COLORS.gold) }, padding: pad });
+  const resultsHeader = align => fmt({ bg: COLORS.gold, color: COLORS.ink, bold: true, size: 9, align, borders: { bottom: medium(COLORS.ink) }, padding: pad });
 
-  const formulaFmt = (align, extra = {}) => fmt({ bg: COLORS.formulaBg, color: COLORS.text, align, borders: cellBorders, ...extra });
-  const inputFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: cellBorders, ...extra });
+  const formulaFmt = (align, extra = {}) => fmt({ bg: COLORS.formulaBg, color: COLORS.text, align, borders: rowBorder, padding: pad, ...extra });
+  const inputFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: { ...rowBorder, right: thin(COLORS.border) }, padding: pad, ...extra });
+  const resultFmt = (align, extra = {}) => fmt({ color: COLORS.text, align, borders: rowBorder, padding: pad, ...extra });
 
   const rows = [];
-  const fill = (cells, format) => {
-    while (cells.length < columnCount) cells.push(blankCell(format));
-    return cells;
-  };
+  const filled = format => Array.from({ length: columnCount }, () => blankCell(format));
 
-  // Row 1: pageant name from SETUP.
-  rows.push(fill([formulaCell(`=UPPER(${setupRef}!$B$${SETUP_TITLE_ROW})`, banner)], banner));
+  // Row 1: pageant name (from SETUP).
+  const row1 = filled(dark);
+  row1[NUM] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_TITLE_ROW})`, banner);
+  rows.push(row1);
 
-  // Row 2: phase name + live ranking label.
-  const row2 = fill([textCell(phase.name.toUpperCase(), titleFmt)], titleFmt);
-  row2[P0] = textCell(copy.liveRanking, titleGold);
+  // Row 2: phase name / section titles.
+  const row2 = filled(dark);
+  row2[NUM] = textCell(phase.name.toUpperCase(), phaseFmt);
+  row2[ST] = textCell(T.scoring, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT' }));
+  row2[R_RK] = textCell(T.results, sectionGold);
   rows.push(row2);
 
   // Row 3: controls.
-  const row3 = fill([textCell(isLast ? copy.placements : copy.qualifyTop, controlLabel)], control);
-  row3[2] = numberCell(phase.qualify, controlInput);
-  row3[3] = isLast
-    ? textCell(copy.finalPlacements, control)
-    : formulaCell(`="  "&C3&" ${copy.advanceTo(nextPhase.name.toUpperCase())}"`, control);
-  row3[ST] = formulaCell(`=IF(AND(C3>0,COUNTIF(${rankCol},"<="&C3)>C3),"${copy.tie}","")`, controlWarn);
-  row3[CM] = formulaCell(`="${copy.scoresEntered}: "&COUNT(C5:${L(T - 1)}${E})&" / "&(SUMPRODUCT(--(LEN(B5:B${E})>0))*${J})`, control);
+  const row3 = filled(control);
+  row3[0] = blankCell(dark);
+  row3[END] = blankCell(dark);
+  row3[GAP] = blankCell(dark);
+  row3[NUM] = textCell(isLast ? T.placements : T.qualifyTop, controlLabel);
+  row3[J0] = numberCell(phase.qualify, controlInput);
+  row3[J0 + 1] = isLast
+    ? formulaCell(`="TOP "&${qualifyRef}`, controlInfo)
+    : formulaCell(`="TOP "&${qualifyRef}&"  →  ${nextPhase.name.toUpperCase()}"`, controlInfo);
+  row3[ST] = formulaCell(`=IF(AND(${qualifyRef}>0,COUNTIF(${rankCol},"<="&${qualifyRef})>${qualifyRef}),"${T.tie}","")`, controlWarn);
+  row3[CM] = formulaCell(`="${T.scoresEntered}  "&COUNT(${scoresBlock})&" / "&(${namesCount}*${J})`, fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, size: 9, align: 'RIGHT', padding: pad }));
+  row3[R_RK] = boolCell(false, checkbox);
+  row3[R_DEL] = splitToneCell(T.sortByRank, fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9 }), COLORS.mutedOnDark);
   rows.push(row3);
 
   // Row 4: headers.
-  const row4 = [
-    textCell('#', header('CENTER')),
-    textCell(copy.colDelegate, header('LEFT'))
-  ];
+  const row4 = filled(fmt());
+  row4[0] = blankCell(fmt());
+  row4[NUM] = textCell('#', header('CENTER'));
+  row4[DEL] = bilingualCell(T.colDelegate, header('LEFT'), COLORS.mutedOnDark);
+  row4[R_RK] = textCell('RANK', resultsHeader('CENTER'));
+  row4[R_DEL] = bilingualCell(T.colDelegate, resultsHeader('LEFT'), COLORS.header);
   for (let j = 0; j < J; j += 1) {
-    row4.push(formulaCell(`=UPPER(${setupRef}!$B$${SETUP_FIRST_JUDGE_ROW + j})`, header('CENTER')));
+    const judgeName = `=UPPER(${setupRef}!$C$${SETUP_FIRST_JUDGE_ROW + j})`;
+    row4[J0 + j] = formulaCell(judgeName, header('CENTER'));
+    row4[R_J0 + j] = formulaCell(judgeName, resultsHeader('CENTER'));
   }
-  row4.push(textCell(copy.colTotal, header('RIGHT')));
-  row4.push(textCell(copy.colRank, header('CENTER')));
-  row4.push(textCell(copy.colStatus, header('LEFT')));
-  row4.push(textCell(copy.colComments, header('LEFT')));
-  row4.push(blankCell(fmt()));
-  row4.push(textCell(copy.colRank, panelHeader('CENTER')));
-  row4.push(textCell(copy.colDelegate, panelHeader('LEFT')));
-  row4.push(textCell(copy.colTotal, panelHeader('RIGHT')));
+  row4[TOT] = textCell('TOTAL', header('RIGHT'));
+  row4[RK] = textCell('RANK', header('CENTER'));
+  row4[ST] = bilingualCell(T.colStatus, header('LEFT'), COLORS.mutedOnDark);
+  row4[CM] = bilingualCell(T.colComments, header('LEFT'), COLORS.mutedOnDark);
+  row4[R_TOT] = textCell('TOTAL', resultsHeader('RIGHT'));
+  row4[R_ST] = bilingualCell(T.colStatus, resultsHeader('LEFT'), COLORS.header);
   rows.push(row4);
 
   const prevRef = prevPhase ? quoteSheet(prevPhase.name.toUpperCase()) : null;
+  const resultsArray = `{${L(RK)}5:${L(RK)}${E},${L(DEL)}5:${L(DEL)}${E},${L(J0)}5:${L(JL)}${E},${L(TOT)}5:${L(TOT)}${E},${L(ST)}5:${L(ST)}${E}}`;
+  const complete = `AND(${namesCount}>0,COUNT(${scoresBlock})>=${namesCount}*${J})`;
+
   for (let i = 0; i < R; i += 1) {
     const r = 5 + i;
-    const cells = [];
-    cells.push(formulaCell(`=IF(B${r}="","",ROW()-4)`, formulaFmt('CENTER', { color: COLORS.muted, size: 9 })));
+    const cells = filled(fmt());
+    cells[NUM] = formulaCell(`=IF(${L(DEL)}${r}="","",ROW()-4)`, formulaFmt('CENTER', { color: COLORS.muted, size: 9 }));
 
     if (isFirst) {
       const name = delegates[i];
-      cells.push(name ? textCell(name, inputFmt('LEFT', { bold: true })) : blankCell(inputFmt('LEFT', { bold: true })));
+      cells[DEL] = name ? textCell(name, inputFmt('LEFT', { bold: true })) : blankCell(inputFmt('LEFT', { bold: true }));
     } else if (i === 0) {
-      cells.push(formulaCell(
-        `=IFERROR(FILTER(${prevRef}!$B$5:$B$${E},${prevRef}!${rankCol}<>"",${prevRef}!${rankCol}<=${prevRef}!$C$3),"")`,
+      cells[DEL] = formulaCell(
+        `=IFERROR(FILTER(${prevRef}!$${L(DEL)}$5:$${L(DEL)}$${E},${prevRef}!${rankCol}<>"",${prevRef}!${rankCol}<=${prevRef}!${qualifyRef}),"")`,
         formulaFmt('LEFT', { bold: true })
-      ));
+      );
     } else {
-      cells.push(blankCell(formulaFmt('LEFT', { bold: true })));
+      cells[DEL] = blankCell(formulaFmt('LEFT', { bold: true }));
     }
 
-    for (let j = 0; j < J; j += 1) cells.push(blankCell(inputFmt('CENTER')));
+    for (let j = 0; j < J; j += 1) cells[J0 + j] = blankCell(inputFmt('CENTER', { size: 11 }));
 
-    const scoreRange = `C${r}:${L(T - 1)}${r}`;
-    cells.push(formulaCell(`=IF(COUNT(${scoreRange})=0,"",SUM(${scoreRange}))`, formulaFmt('RIGHT', { bold: true, pattern: '0.00' })));
-    cells.push(formulaCell(`=IF(OR(B${r}="",${L(T)}${r}=""),"",RANK(${L(T)}${r},${totalCol},0))`, formulaFmt('CENTER', { bold: true, size: 11 })));
+    const scoreRange = `${L(J0)}${r}:${L(JL)}${r}`;
+    cells[TOT] = formulaCell(`=IF(COUNT(${scoreRange})=0,"",SUM(${scoreRange}))`, formulaFmt('RIGHT', { bold: true, pattern: '0.00' }));
+    cells[RK] = formulaCell(`=IF(OR(${L(DEL)}${r}="",${L(TOT)}${r}=""),"",RANK(${L(TOT)}${r},${totalCol},0))`, formulaFmt('CENTER', { bold: true, size: 11 }));
 
     const rankRef = `${L(RK)}${r}`;
     const status = isLast
-      ? `=IF(${rankRef}="","",IF(${rankRef}=1,"${copy.winner}",IF(${rankRef}<=$C$3,${copy.runnerUp(rankRef)},"")))`
-      : `=IF(${rankRef}="","",IF(${rankRef}<=$C$3,"${copy.qualified}",""))`;
-    cells.push(formulaCell(status, formulaFmt('LEFT', { bold: true, size: 9 })));
-    cells.push(blankCell(inputFmt('LEFT', { size: 9, wrap: true })));
-    cells.push(blankCell(fmt()));
+      ? `=IF(${rankRef}="","",IF(${rankRef}=1,"${T.winner}",IF(${rankRef}<=${qualifyRef},${T.runnerUp(rankRef)},"")))`
+      : `=IF(${rankRef}="","",IF(${rankRef}<=${qualifyRef},"${T.qualified}",""))`;
+    cells[ST] = formulaCell(status, formulaFmt('LEFT', { bold: true, size: 8, color: COLORS.goldText }));
+    cells[CM] = blankCell(inputFmt('LEFT', { size: 9, wrap: true }));
 
-    const panelFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: cellBorders, ...extra });
-    if (i === 0) {
-      cells.push(formulaCell(
-        `=IFERROR(SORT(FILTER({${L(RK)}5:${L(RK)}${E},B5:B${E},${L(T)}5:${L(T)}${E}},${L(RK)}5:${L(RK)}${E}<>""),1,TRUE),"")`,
-        panelFmt('CENTER', { bold: true })
-      ));
-    } else {
-      cells.push(blankCell(panelFmt('CENTER', { bold: true })));
-    }
-    cells.push(blankCell(panelFmt('LEFT', { bold: true })));
-    cells.push(blankCell(panelFmt('RIGHT', { pattern: '0.00' })));
+    cells[R_RK] = i === 0
+      ? formulaCell(`=IFERROR(LET(data,FILTER(${resultsArray},${L(DEL)}5:${L(DEL)}${E}<>""),IF(OR(${sortRef},${complete}),SORT(data,1,TRUE),data)),"")`, resultFmt('CENTER', { bold: true, size: 12 }))
+      : blankCell(resultFmt('CENTER', { bold: true, size: 12 }));
+    cells[R_DEL] = blankCell(resultFmt('LEFT', { bold: true }));
+    for (let j = 0; j < J; j += 1) cells[R_J0 + j] = blankCell(resultFmt('CENTER', { color: COLORS.muted }));
+    cells[R_TOT] = blankCell(resultFmt('RIGHT', { bold: true, size: 11, pattern: '0.00' }));
+    cells[R_ST] = blankCell(resultFmt('LEFT', { bold: true, size: 8, color: COLORS.goldText }));
     rows.push(cells);
   }
 
-  const heights = [46, 34, 32, 30, ...Array(R).fill(26)];
-  const widths = [40, 230, ...Array(J).fill(88), 84, 64, 130, 220, 24, 60, 200, 84];
+  const heights = [56, 36, 38, 42, ...Array(R).fill(30)];
+  const widths = [];
+  widths[0] = 16;
+  widths[NUM] = 40;
+  widths[DEL] = 220;
+  for (let j = 0; j < J; j += 1) { widths[J0 + j] = 84; widths[R_J0 + j] = 70; }
+  widths[TOT] = 84;
+  widths[RK] = 64;
+  widths[ST] = 180;
+  widths[CM] = 220;
+  widths[GAP] = 28;
+  widths[R_RK] = 64;
+  widths[R_DEL] = 200;
+  widths[R_TOT] = 84;
+  widths[R_ST] = 180;
+  widths[END] = 16;
 
   const dataRows = [4, E];
+  const qualifiedRow = col => `=AND($${L(col)}5<>"",$${L(col)}5<=${qualifyRef})`;
   const conditionalFormats = [
-    customRule([gridRange(sheetId, ...dataRows, 2, T)], '=AND($B5<>"",C5="")', { backgroundColorStyle: { rgbColor: rgb(COLORS.missing) } }),
+    customRule([gridRange(sheetId, ...dataRows, J0, JL + 1)], `=AND($${L(DEL)}5<>"",${L(J0)}5="")`, bg(COLORS.missing)),
     customRule(
       [gridRange(sheetId, ...dataRows, RK, RK + 1)],
-      `=AND($${L(RK)}5<>"",$${L(RK)}5<=$C$3,$${L(RK)}5+COUNTIF(${rankCol},$${L(RK)}5)-1>$C$3)`,
-      { backgroundColorStyle: { rgbColor: rgb(COLORS.tieBg) }, textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.tieText) } } }
-    )
+      `=AND($${L(RK)}5<>"",$${L(RK)}5<=${qualifyRef},$${L(RK)}5+COUNTIF(${rankCol},$${L(RK)}5)-1>${qualifyRef})`,
+      { ...bg(COLORS.tieBg), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.tieText) } } }
+    ),
+    // Medal colours on the results rank.
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=1`, { ...bg(COLORS.gold), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.ink) } } }),
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=2`, { ...bg(COLORS.silver), textFormat: { bold: true } }),
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=3`, { ...bg(COLORS.bronze), textFormat: { bold: true } })
   ];
   if (isLast) {
-    conditionalFormats.push(customRule(
-      [gridRange(sheetId, ...dataRows, 0, CM), gridRange(sheetId, ...dataRows, P0, P2 + 1)],
-      `=$${L(RK)}5=1`,
-      { backgroundColorStyle: { rgbColor: rgb(COLORS.goldStrong) }, textFormat: { bold: true } }
-    ));
+    conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=$${L(R_RK)}5=1`, { ...bg(COLORS.goldMid), textFormat: { bold: true } }));
   }
-  conditionalFormats.push(customRule(
-    [gridRange(sheetId, ...dataRows, 0, CM)],
-    `=AND($${L(RK)}5<>"",$${L(RK)}5<=$C$3)`,
-    { backgroundColorStyle: { rgbColor: rgb(COLORS.goldSoft) } }
-  ));
-  conditionalFormats.push(customRule(
-    [gridRange(sheetId, ...dataRows, P0, P2 + 1)],
-    `=AND($${L(P0)}5<>"",$${L(P0)}5<=$C$3)`,
-    { backgroundColorStyle: { rgbColor: rgb(COLORS.goldSoft) } }
-  ));
+  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, NUM, ST + 1)], qualifiedRow(RK), bg(COLORS.goldSoft)));
+  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], qualifiedRow(R_RK), bg(COLORS.goldSoft)));
 
-  const warn = range => ({ range, description: copy.protectedNote, warningOnly: true });
-  const protectedRanges = [
-    warn(gridRange(sheetId, 0, 2, 0, columnCount)),
-    warn(gridRange(sheetId, 2, 3, 0, 2)),
-    warn(gridRange(sheetId, 2, 3, 3, columnCount)),
-    warn(gridRange(sheetId, 3, 4, 0, columnCount)),
-    warn(gridRange(sheetId, ...dataRows, 0, isFirst ? 1 : 2)),
-    warn(gridRange(sheetId, ...dataRows, T, ST + 1)),
-    warn(gridRange(sheetId, ...dataRows, P0, P2 + 1))
+  const bandedRanges = [{
+    range: gridRange(sheetId, ...dataRows, R_RK, R_ST + 1),
+    rowProperties: { firstBandColorStyle: { rgbColor: rgb(COLORS.white) }, secondBandColorStyle: { rgbColor: rgb(COLORS.band) } }
+  }];
+
+  const unprotected = [
+    gridRange(sheetId, 2, 3, J0, J0 + 1),
+    gridRange(sheetId, 2, 3, R_RK, R_RK + 1),
+    gridRange(sheetId, ...dataRows, J0, JL + 1),
+    gridRange(sheetId, ...dataRows, CM, CM + 1)
+  ];
+  if (isFirst) unprotected.push(gridRange(sheetId, ...dataRows, DEL, DEL + 1));
+
+  const merges = [
+    gridRange(sheetId, 0, 1, NUM, CM + 1),
+    gridRange(sheetId, 1, 2, NUM, ST),
+    gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
+    gridRange(sheetId, 2, 3, NUM, J0),
+    gridRange(sheetId, 2, 3, J0 + 1, ST),
+    gridRange(sheetId, 2, 3, R_DEL, R_ST + 1)
   ];
 
   return {
@@ -393,7 +447,7 @@ function buildPhaseSheet({ copy, sheetId, index, phase, prevPhase, nextPhase, is
         sheetId,
         title: phase.name.toUpperCase(),
         index,
-        gridProperties: { rowCount: E, columnCount, frozenRowCount: 4, hideGridlines: true },
+        gridProperties: { rowCount: E + 1, columnCount, frozenRowCount: 4, hideGridlines: true },
         tabColorStyle: { rgbColor: rgb(COLORS.gold) }
       },
       data: [{
@@ -403,71 +457,87 @@ function buildPhaseSheet({ copy, sheetId, index, phase, prevPhase, nextPhase, is
         rowMetadata: heights.map(pixelSize => ({ pixelSize })),
         columnMetadata: widths.map(pixelSize => ({ pixelSize }))
       }],
+      merges,
       conditionalFormats,
-      protectedRanges
+      bandedRanges,
+      protectedRanges: [lockSheet(sheetId, unprotected)]
     },
-    scoreValidation: {
-      setDataValidation: {
-        range: gridRange(sheetId, 4, E, 2, T),
-        rule: {
-          condition: {
-            type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: `=AND(ISNUMBER(C5),C5>=0,C5<=INDIRECT("${quoteSheet(copy.setupTab)}!B${SETUP_MAX_ROW}"))` }]
-          },
-          inputMessage: copy.scoreHint,
-          strict: true
+    validations: [
+      {
+        setDataValidation: {
+          range: gridRange(sheetId, ...dataRows, J0, JL + 1),
+          rule: {
+            condition: {
+              type: 'CUSTOM_FORMULA',
+              values: [{ userEnteredValue: `=AND(ISNUMBER(${L(J0)}5),${L(J0)}5>=0,${L(J0)}5<=INDIRECT("${quoteSheet(T.setupTab)}!C${SETUP_MAX_ROW}"))` }]
+            },
+            inputMessage: T.scoreHint,
+            strict: true
+          }
+        }
+      },
+      {
+        setDataValidation: {
+          range: gridRange(sheetId, 2, 3, R_RK, R_RK + 1),
+          rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true }
         }
       }
-    },
-    gapColumn: GAP
+    ]
   };
 }
 
-function buildAwardsSheet({ copy, awards, firstPhaseName, rowCount }) {
-  const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 18 });
-  const titleFmt = fmt({ bg: COLORS.ink, color: COLORS.white, bold: true, size: 14 });
-  const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: { bottom: medium(COLORS.gold) } });
-  const cellFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: cellBorders, ...extra });
-  const setupRef = quoteSheet(copy.setupTab);
+function buildAwardsSheet({ awards, firstPhaseName, rowCount }) {
+  const dark = fmt({ bg: COLORS.ink });
+  const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 20 });
+  const titleFmt = fmt({ bg: COLORS.ink, color: COLORS.white, bold: true, size: 13 });
+  const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: { bottom: medium(COLORS.gold) }, padding: pad });
+  const cellFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: rowBorder, padding: pad, ...extra });
+  const setupRef = quoteSheet(T.setupTab);
   const lines = [...awards, ...Array(Math.max(0, 10 - awards.length)).fill('')];
+  const white = fmt({ bg: COLORS.white });
 
   const rows = [
-    [formulaCell(`=UPPER(${setupRef}!$B$${SETUP_TITLE_ROW})`, banner), blankCell(banner), blankCell(banner)],
-    [textCell(copy.awardsTitle, titleFmt), blankCell(titleFmt), blankCell(titleFmt)],
-    [textCell('#', header('CENTER')), textCell(copy.award, header('LEFT')), textCell(copy.awardWinner, header('LEFT'))],
+    [blankCell(dark), formulaCell(`=UPPER(${setupRef}!$C$${SETUP_TITLE_ROW})`, banner), blankCell(dark), blankCell(dark), blankCell(dark)],
+    [blankCell(dark), textCell(T.awardsTitle, titleFmt), blankCell(dark), blankCell(dark), blankCell(dark)],
+    [blankCell(white), textCell('#', header('CENTER')), bilingualCell(T.award, header('LEFT'), COLORS.mutedOnDark), bilingualCell(T.awardWinner, header('LEFT'), COLORS.mutedOnDark), blankCell(white)],
     ...lines.map((label, index) => [
+      blankCell(white),
       numberCell(index + 1, cellFmt('CENTER', { color: COLORS.muted, size: 9 })),
       label ? textCell(label, cellFmt('LEFT', { bold: true })) : blankCell(cellFmt('LEFT', { bold: true })),
-      blankCell(cellFmt('LEFT'))
+      blankCell(cellFmt('LEFT', { color: COLORS.goldText, bold: true })),
+      blankCell(white)
     ])
   ];
+  const firstLine = 3;
 
   return {
     sheet: {
       properties: {
         sheetId: AWARDS_ID,
-        title: copy.awardsTab,
-        gridProperties: { rowCount: rows.length + 5, columnCount: 3, frozenRowCount: 3, hideGridlines: true },
-        tabColorStyle: { rgbColor: rgb(COLORS.goldStrong) }
+        title: T.awardsTab,
+        gridProperties: { rowCount: rows.length + 3, columnCount: 5, frozenRowCount: 3, hideGridlines: true },
+        tabColorStyle: { rgbColor: rgb(COLORS.goldMid) }
       },
       data: [{
         startRow: 0,
         startColumn: 0,
         rowData: rows.map(values => ({ values })),
-        rowMetadata: [46, 34, 30, ...lines.map(() => 30)].map(pixelSize => ({ pixelSize })),
-        columnMetadata: [{ pixelSize: 48 }, { pixelSize: 320 }, { pixelSize: 280 }]
-      }]
+        rowMetadata: [56, 36, 42, ...lines.map(() => 34)].map(pixelSize => ({ pixelSize })),
+        columnMetadata: [{ pixelSize: 16 }, { pixelSize: 48 }, { pixelSize: 340 }, { pixelSize: 300 }, { pixelSize: 16 }]
+      }],
+      merges: [gridRange(AWARDS_ID, 0, 1, 1, 4), gridRange(AWARDS_ID, 1, 2, 1, 4)],
+      protectedRanges: [lockSheet(AWARDS_ID, [gridRange(AWARDS_ID, firstLine, firstLine + lines.length, 2, 4)])]
     },
-    winnerValidation: {
+    validations: [{
       setDataValidation: {
-        range: gridRange(AWARDS_ID, 3, 3 + lines.length, 2, 3),
+        range: gridRange(AWARDS_ID, firstLine, firstLine + lines.length, 3, 4),
         rule: {
-          condition: { type: 'ONE_OF_RANGE', values: [{ userEnteredValue: `=${quoteSheet(firstPhaseName.toUpperCase())}!$B$5:$B$${4 + rowCount}` }] },
+          condition: { type: 'ONE_OF_RANGE', values: [{ userEnteredValue: `=${quoteSheet(firstPhaseName.toUpperCase())}!$C$5:$C$${4 + rowCount}` }] },
           strict: false,
           showCustomUi: true
         }
       }
-    }
+    }]
   };
 }
 
@@ -480,15 +550,13 @@ const DEFAULT_GOOGLE_PHASES = [
 
 const DEFAULT_AWARDS = ['Best in National Costume', 'Best in Introduction', 'Best in Preliminaries - Swim', 'Best in Preliminaries - EG'];
 
-function buildGoogleSpreadsheet({ title, judgeNames, delegates = [], language = 'en', maxScore = 10, phases = DEFAULT_GOOGLE_PHASES, awards = DEFAULT_AWARDS }) {
-  const copy = SHEET_COPY[language === 'es' ? 'es' : 'en'];
+function buildGoogleSpreadsheet({ title, judgeNames, delegates = [], maxScore = 10, phases = DEFAULT_GOOGLE_PHASES, awards = DEFAULT_AWARDS }) {
   const rowCount = Math.max(50, delegates.length + 10);
-  const sheets = [buildSetupSheet({ copy, title, judgeNames, maxScore })];
+  const sheets = [buildSetupSheet({ title, judgeNames, maxScore })];
   const validations = [];
 
   phases.forEach((phase, index) => {
     const built = buildPhaseSheet({
-      copy,
       sheetId: 10 + index,
       index: index + 1,
       phase,
@@ -501,13 +569,13 @@ function buildGoogleSpreadsheet({ title, judgeNames, delegates = [], language = 
       delegates
     });
     sheets.push(built.sheet);
-    validations.push(built.scoreValidation);
+    validations.push(...built.validations);
   });
 
-  const awardsSheet = buildAwardsSheet({ copy, awards, firstPhaseName: phases[0].name, rowCount });
+  const awardsSheet = buildAwardsSheet({ awards, firstPhaseName: phases[0].name, rowCount });
   awardsSheet.sheet.properties.index = phases.length + 1;
   sheets.push(awardsSheet.sheet);
-  validations.push(awardsSheet.winnerValidation);
+  validations.push(...awardsSheet.validations);
 
   return {
     createBody: {
