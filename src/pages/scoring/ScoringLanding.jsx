@@ -81,6 +81,7 @@ export default function ScoringLanding() {
   const [sheetJudgeCount, setSheetJudgeCount] = useState(DEFAULT_JUDGE_COUNT);
   const [sheetCode, setSheetCode] = useState('');
   const [sheetDelegates, setSheetDelegates] = useState('');
+  const [sheetMode, setSheetMode] = useState(null);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleResult, setGoogleResult] = useState(null);
   const [googleLinkCopied, setGoogleLinkCopied] = useState(false);
@@ -134,6 +135,7 @@ export default function ScoringLanding() {
 
   const resetRoleFlow = () => {
     setActiveRole(null);
+    setSheetMode(null);
     setError('');
     setSubmitting(false);
   };
@@ -334,102 +336,153 @@ export default function ScoringLanding() {
     }
   };
 
-  const renderScoresheetForms = (showBack) => (
-    <div className="space-y-4">
-      <form onSubmit={handleScoresheetCreate} className="space-y-3">
-        <input
-          type="text"
-          value={sheetTitle}
-          onChange={event => { setSheetTitle(event.target.value); setError(''); }}
-          className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
-          placeholder={t.landing.scoresheetTitlePlaceholder}
-          required
-        />
-        <label className="flex items-center justify-between gap-3 rounded-lg border border-app-border/60 bg-app-card/35 px-3 h-11">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetJudgesLabel}</span>
-          <input
-            type="number"
-            min="1"
-            max={MAX_JUDGES}
-            value={sheetJudgeCount}
-            onChange={event => setSheetJudgeCount(Math.min(MAX_JUDGES, Math.max(1, Number(event.target.value) || 1)))}
-            className="scoring-input w-20 rounded-md h-8 px-2 text-sm text-center"
-          />
-        </label>
-        <textarea
-          value={sheetDelegates}
-          onChange={event => setSheetDelegates(event.target.value)}
-          rows={3}
-          className="scoring-input w-full rounded-lg px-3 py-2 text-sm resize-y min-h-[44px]"
-          placeholder={t.landing.scoresheetDelegatesPlaceholder}
-        />
-        <div className="flex flex-col sm:flex-row items-stretch gap-2 pt-1">
+  const renderScoresheetForms = (showBack) => {
+    const isGoogle = sheetMode === 'google';
+    const backToChoice = () => { setSheetMode(null); setError(''); setGoogleResult(null); };
+
+    if (!sheetMode) {
+      return (
+        <div className="space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetChooseTitle}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => { setSheetMode('native'); setError(''); }}
+              className="text-left rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-4 hover:border-app-accent/45 transition-colors"
+            >
+              <span className="inline-flex w-9 h-9 items-center justify-center rounded-xl bg-app-accent/12 text-app-accent">
+                <Sheet className="w-[18px] h-[18px]" />
+              </span>
+              <p className="mt-3 text-sm font-bold text-app-text">{t.landing.scoresheetNativeTitle}</p>
+              <p className="text-xs text-app-muted/80 mt-1">{t.landing.scoresheetNativeDescription}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSheetMode('google'); setError(''); }}
+              className="text-left rounded-2xl border border-app-border/70 bg-app-card/45 px-4 py-4 hover:border-[#16a34a]/60 transition-colors"
+            >
+              <span className="inline-flex w-9 h-9 items-center justify-center rounded-xl bg-[#16a34a]/15 text-[#16a34a]">
+                <Sheet className="w-[18px] h-[18px]" />
+              </span>
+              <p className="mt-3 text-sm font-bold text-app-text">{t.landing.scoresheetGoogleTitle}</p>
+              <p className="text-xs text-app-muted/80 mt-1">{t.landing.scoresheetGoogleDescription}</p>
+            </button>
+          </div>
           {showBack && (
             <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
               {t.landing.workflowBack}
             </button>
           )}
-          <button type="submit" disabled={submitting || googleBusy} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetCreating}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetLiveCreate}</>}
-          </button>
-          <button
-            type="button"
-            onClick={handleGoogleSheetCreate}
-            disabled={submitting || googleBusy}
-            className="flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2 border border-[#16a34a]/50 bg-[#16a34a]/10 text-[#16a34a] hover:bg-[#16a34a]/20 transition-colors"
-          >
-            {googleBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetGoogleBusy}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetGoogleCreate}</>}
-          </button>
         </div>
-        <p className="text-[11px] text-app-muted/70 leading-relaxed">{t.landing.scoresheetGoogleHint}</p>
-        {googleResult && (
-          <div className="rounded-xl border border-[#16a34a]/45 bg-[#16a34a]/10 p-3 space-y-2">
-            <p className="text-sm font-bold text-app-text inline-flex items-center gap-2">
-              <Check className="w-4 h-4 text-[#16a34a]" />
-              {t.landing.scoresheetGoogleReady}
-            </p>
-            <p className="text-xs text-app-muted">{googleResult.shared ? t.landing.scoresheetGoogleShared : t.landing.scoresheetGoogleNotShared}</p>
-            <div className="flex gap-2">
-              <a
-                href={googleResult.spreadsheetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="scoring-btn-primary flex-1 rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center justify-center gap-2 no-underline"
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <form
+          onSubmit={isGoogle ? (event => { event.preventDefault(); handleGoogleSheetCreate(); }) : handleScoresheetCreate}
+          className="space-y-3"
+        >
+          <p className={`text-[10px] font-bold uppercase tracking-[0.2em] inline-flex items-center gap-2 ${isGoogle ? 'text-[#16a34a]' : 'text-app-accent'}`}>
+            <Sheet className="w-3.5 h-3.5" />
+            {isGoogle ? t.landing.scoresheetGoogleTitle : t.landing.scoresheetNativeTitle}
+          </p>
+          <input
+            type="text"
+            value={sheetTitle}
+            onChange={event => { setSheetTitle(event.target.value); setError(''); }}
+            className="scoring-input w-full rounded-lg h-11 px-3 text-sm"
+            placeholder={t.landing.scoresheetTitlePlaceholder}
+            required
+          />
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-app-border/60 bg-app-card/35 px-3 h-11">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetJudgesLabel}</span>
+            <input
+              type="number"
+              min="1"
+              max={MAX_JUDGES}
+              value={sheetJudgeCount}
+              onChange={event => setSheetJudgeCount(Math.min(MAX_JUDGES, Math.max(1, Number(event.target.value) || 1)))}
+              className="scoring-input w-20 rounded-md h-8 px-2 text-sm text-center"
+            />
+          </label>
+          <textarea
+            value={sheetDelegates}
+            onChange={event => setSheetDelegates(event.target.value)}
+            rows={3}
+            className="scoring-input w-full rounded-lg px-3 py-2 text-sm resize-y min-h-[44px]"
+            placeholder={t.landing.scoresheetDelegatesPlaceholder}
+          />
+          <div className="flex items-stretch gap-2 pt-1">
+            <button type="button" onClick={backToChoice} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
+              {t.landing.workflowBack}
+            </button>
+            {isGoogle ? (
+              <button
+                type="submit"
+                disabled={googleBusy}
+                className="flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2 bg-[#16a34a] text-white hover:brightness-95 transition"
               >
-                <ExternalLink className="w-4 h-4" />
-                {t.landing.scoresheetGoogleOpen}
-              </a>
-              <button type="button" onClick={copyGoogleLink} className="scoring-btn-secondary rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2">
-                {googleLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {googleLinkCopied ? t.landing.scoresheetGoogleCopied : t.landing.scoresheetGoogleCopy}
+                {googleBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetGoogleBusy}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetGoogleCreate}</>}
+              </button>
+            ) : (
+              <button type="submit" disabled={submitting} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetCreating}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetCreate}</>}
+              </button>
+            )}
+          </div>
+          {isGoogle && <p className="text-[11px] text-app-muted/70 leading-relaxed">{t.landing.scoresheetGoogleHint}</p>}
+          {isGoogle && googleResult && (
+            <div className="rounded-xl border border-[#16a34a]/45 bg-[#16a34a]/10 p-3 space-y-2">
+              <p className="text-sm font-bold text-app-text inline-flex items-center gap-2">
+                <Check className="w-4 h-4 text-[#16a34a]" />
+                {t.landing.scoresheetGoogleReady}
+              </p>
+              <p className="text-xs text-app-muted">{googleResult.shared ? t.landing.scoresheetGoogleShared : t.landing.scoresheetGoogleNotShared}</p>
+              <div className="flex gap-2">
+                <a
+                  href={googleResult.spreadsheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="scoring-btn-primary flex-1 rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center justify-center gap-2 no-underline"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {t.landing.scoresheetGoogleOpen}
+                </a>
+                <button type="button" onClick={copyGoogleLink} className="scoring-btn-secondary rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2">
+                  {googleLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {googleLinkCopied ? t.landing.scoresheetGoogleCopied : t.landing.scoresheetGoogleCopy}
+                </button>
+              </div>
+            </div>
+          )}
+        </form>
+        {!isGoogle && (
+          <form onSubmit={handleScoresheetOpen} className="border-t border-app-border/50 pt-4 space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetOpenLabel}</p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center flex-1">
+                <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
+                  {SCORESHEET_CODE_PREFIX}
+                </span>
+                <input
+                  type="text"
+                  value={sheetCode}
+                  onChange={event => { setSheetCode(normalizeScoresheetCode(event.target.value)); setError(''); }}
+                  className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest"
+                  placeholder="XXXXXX"
+                  maxLength={6}
+                />
+              </div>
+              <button type="submit" disabled={submitting || !sheetCode} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50">
+                {t.landing.scoresheetOpen}
               </button>
             </div>
-          </div>
+          </form>
         )}
-      </form>
-      <form onSubmit={handleScoresheetOpen} className="border-t border-app-border/50 pt-4 space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetOpenLabel}</p>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center flex-1">
-            <span className="scoring-input inline-flex h-11 items-center rounded-l-lg border-r-0 px-3 text-sm font-mono tracking-widest text-app-muted/70">
-              {SCORESHEET_CODE_PREFIX}
-            </span>
-            <input
-              type="text"
-              value={sheetCode}
-              onChange={event => { setSheetCode(normalizeScoresheetCode(event.target.value)); setError(''); }}
-              className="scoring-input w-full rounded-r-lg rounded-l-none h-11 px-3 text-sm uppercase font-mono tracking-widest"
-              placeholder="XXXXXX"
-              maxLength={6}
-            />
-          </div>
-          <button type="submit" disabled={submitting || !sheetCode} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50">
-            {t.landing.scoresheetOpen}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <div 
