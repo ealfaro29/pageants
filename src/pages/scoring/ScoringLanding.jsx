@@ -280,10 +280,9 @@ export default function ScoringLanding() {
     setError('');
     setGoogleResult(null);
     try {
-      // The Google sign-in popup opens first, straight from the click, so browsers allow it.
       const result = await createGoogleScoresheet({
         title: sheetTitle.trim(),
-        judgeNames: Array.from({ length: sheetJudgeCount }, (_, index) => `JUDGE ${index + 1}`),
+        judgeCount: sheetJudgeCount,
         delegates: parseDelegateList(sheetDelegates),
         language
       });
@@ -291,13 +290,11 @@ export default function ScoringLanding() {
     } catch (googleError) {
       console.error(googleError);
       const messages = {
-        'api-disabled': t.landing.scoresheetGoogleApiDisabled,
-        'scope-missing': t.landing.scoresheetGoogleScopeMissing,
-        'popup-blocked': t.landing.scoresheetGooglePopupBlocked
+        'not-configured': t.landing.scoresheetGoogleNotConfigured,
+        'rate-limited': t.landing.scoresheetGoogleRateLimited,
+        network: t.join.connectionError
       };
-      if (googleError?.code !== 'cancelled') {
-        setError(messages[googleError?.code] || `${t.landing.scoresheetGoogleError}${googleError?.message ? ` (${googleError.message})` : ''}`);
-      }
+      setError(messages[googleError?.code] || `${t.landing.scoresheetGoogleError}${googleError?.message ? ` (${googleError.message})` : ''}`);
     } finally {
       setGoogleBusy(false);
     }
