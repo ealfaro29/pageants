@@ -6,6 +6,9 @@ import { auth } from '../../../core/firebase-config.js';
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const TOKEN_TTL_MS = 50 * 60 * 1000;
 let cachedToken = null;
+// Google shows Drive access as a checkbox on its consent screen. If it was left unticked,
+// the next attempt forces that screen again so the person can grant it.
+let forceConsent = false;
 
 export class GoogleSheetsError extends Error {
   constructor(code, message) {
@@ -21,7 +24,7 @@ export async function getGoogleAccessToken() {
 
   const provider = new GoogleAuthProvider();
   provider.addScope(DRIVE_FILE_SCOPE);
-  provider.setCustomParameters({ prompt: 'select_account' });
+  provider.setCustomParameters({ prompt: forceConsent ? 'consent select_account' : 'select_account' });
 
   const hadUser = Boolean(auth.currentUser);
   let result;
@@ -40,6 +43,7 @@ export async function getGoogleAccessToken() {
   if (!hadUser) await signOut(auth).catch(() => {});
   if (!token) throw new GoogleSheetsError('auth-failed', 'No access token');
   cachedToken = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
+  forceConsent = false;
   return token;
 }
 
@@ -56,6 +60,11 @@ async function googleFetch(url, token, body) {
   const disabled = (payload?.error?.details || []).some(detail => detail?.reason === 'SERVICE_DISABLED')
     || /has not been used|is disabled/i.test(message);
   if (response.status === 401) cachedToken = null;
+  if (response.status === 403 && /insufficient authentication scopes/i.test(message)) {
+    cachedToken = null;
+    forceConsent = true;
+    throw new GoogleSheetsError('scope-missing', message);
+  }
   throw new GoogleSheetsError(disabled ? 'api-disabled' : 'request-failed', message);
 }
 

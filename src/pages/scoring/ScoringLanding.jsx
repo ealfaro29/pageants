@@ -292,6 +292,7 @@ export default function ScoringLanding() {
       console.error(googleError);
       const messages = {
         'api-disabled': t.landing.scoresheetGoogleApiDisabled,
+        'scope-missing': t.landing.scoresheetGoogleScopeMissing,
         'popup-blocked': t.landing.scoresheetGooglePopupBlocked
       };
       if (googleError?.code !== 'cancelled') {
