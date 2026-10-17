@@ -14,7 +14,7 @@ const CATEGORIES = {
     avatar: ["Hair", "Mesh", "Accessory", "Clothing", "Hats", "Face"]
 };
 
-export default function AdminModal({ isOpen, onClose }) {
+export default function AdminModal({ isOpen, onClose, onCatalogChanged }) {
     const [user, setUser] = useState(null);
     const [itemType, setItemType] = useState('texture');
     const [robloxId, setRobloxId] = useState('');
@@ -100,6 +100,7 @@ export default function AdminModal({ isOpen, onClose }) {
             });
 
             setMsg({ text: '✅ Saved!', type: 'success' });
+            onCatalogChanged?.();
             setRobloxId('');
             setItemName('');
             setPreviewState('idle');
@@ -119,6 +120,7 @@ export default function AdminModal({ isOpen, onClose }) {
         try {
             const count = await migrateFacebaseCountries();
             setMsg({ text: `✅ Success! Normalized ${count} items.`, type: 'success' });
+            if (count > 0) onCatalogChanged?.();
         } catch (error) {
             setMsg({ text: '❌ ' + error.message, type: 'error' });
         } finally {
@@ -133,7 +135,7 @@ export default function AdminModal({ isOpen, onClose }) {
         try {
             const count = await decoupleFacebaseNames();
             setMsg({ text: `✅ Success! Adjusted ${count} items to be unique.`, type: 'success' });
-            // The parent might need to refresh, but usually the real-time sync or next reload handles it.
+            if (count > 0) onCatalogChanged?.();
         } catch (error) {
             setMsg({ text: '❌ ' + error.message, type: 'error' });
         } finally {

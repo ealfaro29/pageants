@@ -96,7 +96,7 @@ export default function DeleteConfirmModal({
                                     <span className="font-semibold text-red-400">
                                         {batchItems.length}
                                     </span>{' '}
-                                    selected items from the database?
+                                    items from the database? Every variant of the selected cards is included.
                                 </p>
                             ) : (
                                 <div>

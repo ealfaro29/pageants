@@ -7,7 +7,7 @@ import TimeConverterModal from './TimeConverterModal';
 import DriveModal from './DriveModal';
 import TicketModal from './TicketModal';
 
-export default function Header({ activeTab, setActiveTab }) {
+export default function Header({ activeTab, setActiveTab, onCatalogChanged }) {
     const [isAdminOpen, setIsAdminOpen] = useState(false);
     const [isTimeConverterOpen, setIsTimeConverterOpen] = useState(false);
     const [isDriveOpen, setIsDriveOpen] = useState(false);
@@ -176,7 +176,7 @@ export default function Header({ activeTab, setActiveTab }) {
             )}
         </AnimatePresence>
 
-        <AdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
+        <AdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} onCatalogChanged={onCatalogChanged} />
         <TimeConverterModal isOpen={isTimeConverterOpen} onClose={() => setIsTimeConverterOpen(false)} />
         <DriveModal isOpen={isDriveOpen} onClose={() => setIsDriveOpen(false)} />
         <TicketModal isOpen={isTicketOpen} onClose={() => setIsTicketOpen(false)} />

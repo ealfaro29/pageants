@@ -66,7 +66,7 @@ function Dashboard({ user }) {
     const [dataError, setDataError] = useState('');
     const [showHidden, setShowHidden] = useState(true);
     const { isFavorite, toggleFavorite } = useFavorites();
-    const { groups, createGroup, deleteGroup } = useGroups();
+    const { groups, createGroup, deleteGroup, updateGroup } = useGroups();
 
     // Selection mode for grouping
     const [selectionMode, setSelectionMode] = useState(false);
@@ -140,13 +140,27 @@ function Dashboard({ user }) {
     };
 
     const handleBatchDeleteClick = () => {
-        const itemsToDelete = Array.from(selectedItems).map(id => {
-            const found = allFlatItems.find(i => i.id === id);
-            return {
-                id,
-                type: found?.type || (activeTab === 'textures' ? 'texture' : activeTab === 'facebases' ? 'facebase' : activeTab),
-                name: found?.displayName || found?.title || id
-            };
+        // Texture and facebase cards are selected by their main variant id, but the card
+        // stands for every variant in it — delete them all so the card doesn't reappear.
+        const variantsBySelectionId = new Map();
+        if (activeTab === 'textures') {
+            groupTextureVariants(data?.allTextureItems || []).forEach(group => {
+                variantsBySelectionId.set(group.mainVariant.id, group.variants);
+            });
+        } else if (activeTab === 'facebases') {
+            groupFacebaseVariants(data?.allFacebaseItems || []).forEach(group => {
+                variantsBySelectionId.set(group.defaultItem.id, Object.values(group.variants));
+            });
+        }
+
+        const fallbackType = activeTab === 'textures' ? 'texture' : activeTab === 'facebases' ? 'facebase' : activeTab;
+        const itemsToDelete = Array.from(selectedItems).flatMap(id => {
+            const variants = variantsBySelectionId.get(id) || [allFlatItems.find(i => i.id === id) || { id }];
+            return variants.map(variant => ({
+                id: variant.id,
+                type: variant.type || fallbackType,
+                name: variant.displayName || variant.title || variant.id
+            }));
         });
         setDeleteModal({
             isOpen: true,
@@ -268,15 +282,16 @@ function Dashboard({ user }) {
         ...prev, [activeTab]: { ...prev[activeTab], category: c, query: prev[activeTab]?.query || '' }
     }));
 
-    const reloadData = async () => {
-        setLoading(true);
+    // silent: refresh data in place without swapping the grid for the loading spinner
+    const reloadData = async ({ silent = false } = {}) => {
+        if (!silent) setLoading(true);
         setDataError('');
         try {
             const result = await initializeAllData(user);
             setData(result);
         } catch (error) {
             console.error("React Migration Error:", error);
-            setData(null);
+            if (!silent) setData(null);
             setDataError(getCatalogErrorMessage(error));
         } finally {
             setLoading(false);
@@ -510,23 +525,23 @@ function Dashboard({ user }) {
         }
 
         if (activeTab === 'favorites') {
-            // Need to flatten all lists, find items marked as favorites, and render them.
-            // Simplified rendering since they're different types. In original, it dynamically rendered appropriate cards.
-            const allItems = [
-                ...(data.allAvatarItems || []).map(i => ({ ...i, _type: 'avatar' })),
-                ...(data.allTextureItems || []).map(i => ({ ...i, _type: 'texture' })),
-                ...(data.allFacebaseItems || []).map(i => ({ ...i, _type: 'facebase' })),
-                ...(data.allMusicCodes || []).map(i => ({ ...i, _type: 'music' })),
-            ];
+            // Textures and facebases are shown as one card per variant group (same as their
+            // own tabs) instead of one card per favorited variant, so groups don't repeat.
+            const favoriteTextureGroups = groupTextureVariants(data.allTextureItems || [])
+                .map(group => {
+                    const favoriteVariant = group.variants.find(v => isFavorite(v.id));
+                    return favoriteVariant ? { ...group, mainVariant: favoriteVariant } : null;
+                })
+                .filter(Boolean);
+            const favoriteFacebaseGroups = groupFacebaseVariants(data.allFacebaseItems || [])
+                .filter(group => Object.values(group.variants).some(v => isFavorite(v.id)));
+            const favoriteAvatarItems = (data.allAvatarItems || []).filter(item => isFavorite(item.id));
+            const favoriteMusicItems = (data.allMusicCodes || []).filter(item => isFavorite(item.id));
 
-            const favoriteItems = allItems.filter(item => {
-                // If it's a texture or facebase group object (which the arrays are NOT, they're individual items here)
-                // Actually, DataLoader provides flat arrays, except the custom group functions we call later.
-                // It's safer to check if the ID is favored.
-                return isFavorite(item.id);
-            });
+            const favoriteCount = favoriteTextureGroups.length + favoriteFacebaseGroups.length
+                + favoriteAvatarItems.length + favoriteMusicItems.length;
 
-            if (favoriteItems.length === 0) {
+            if (favoriteCount === 0) {
                 return (
                     <div className="text-center text-zinc-500 pt-10">
                         <p>Mark an item as favorite (❤️) to see it here.</p>
@@ -536,15 +551,18 @@ function Dashboard({ user }) {
 
             return (
                 <div className="pr-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {favoriteItems.map(item => {
-                        if (item._type === 'avatar') {
-                            return <Card key={item.id} id={item.id} displayName={item.displayName} group={item.group} imageSrc={item.src} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} type="avatar" isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
-                        }
-                        if (item._type === 'music') {
-                            return <MusicCard key={item.id} code={item} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
-                        }
-                        return <Card key={item.id} id={item.id} displayName={item.displayName || item.baseName || item.title} group={item.group || item.category} imageSrc={item.src || (item.defaultItem && item.defaultItem.src) || ''} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
-                    })}
+                    {favoriteFacebaseGroups.map(group => (
+                        <FacebaseCard key={`fb_${group.group}_${group.baseDisplayName}`} group={group} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} isAdmin={!!user} showHidden={showHidden} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
+                    ))}
+                    {favoriteAvatarItems.map(item => (
+                        <Card key={item.id} id={item.id} displayName={item.displayName} group={item.group} imageSrc={item.src} codeId={item.codeId} isFavorite={isFavorite(item.id)} onToggleFavorite={toggleFavorite} type="avatar" isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
+                    ))}
+                    {favoriteTextureGroups.map(group => (
+                        <TextureCard key={`tx_${group.baseName}`} group={group} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} isAdmin={!!user} showHidden={showHidden} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
+                    ))}
+                    {favoriteMusicItems.map(item => (
+                        <MusicCard key={item.id} code={item} isFavorite={isFavorite} onToggleFavorite={toggleFavorite} isAdmin={!!user} hideCodes={hideCodes} onRefresh={reloadData} onContextMenu={handleContextMenu} onEdit={handleEditItem} />
+                    ))}
                 </div>
             )
         }
@@ -570,7 +588,7 @@ function Dashboard({ user }) {
         <>
             <div id="custom-toast"></div>
             <div className={`app-wrapper ${!loading ? 'loaded' : ''}`} id="app-container">
-                <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+                <Header activeTab={activeTab} setActiveTab={setActiveTab} onCatalogChanged={() => reloadData({ silent: true })} />
                 <main className="panel flex flex-col min-h-0" role="main">
                     <div id="search-controls" className="flex-shrink-0 flex items-center gap-2 mb-3 md:mb-4 pb-3 md:pb-4 border-b border-[var(--border)]" role="search">
                         <div className="relative flex-grow">
