@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X, Sheet } from 'lucide-react';
+import { Crown, Sun, Moon, ShieldCheck, Users, Eye, BookOpen, UserCog, Loader2, House, ClipboardList, X, Sheet, ExternalLink, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { db } from '../../core/firebase-config.js';
 import ScoringLanguageToggle from './ScoringLanguageToggle';
@@ -29,9 +29,11 @@ import {
   DEFAULT_JUDGE_COUNT,
   MAX_JUDGES,
   normalizeScoresheetCode,
+  parseDelegateList,
   SCORESHEET_CODE_PREFIX,
   scoresheetRef
 } from './scoresheet/scoresheetModel';
+import { createGoogleScoresheet } from './scoresheet/googleSheetsExport';
 
 // "New" badge for the scoresheet option: shown for 15 days after the 2026-10-14 release.
 const SCORESHEET_NEW_UNTIL = new Date('2026-10-29T23:59:59').getTime();
@@ -78,6 +80,10 @@ export default function ScoringLanding() {
   const [sheetTitle, setSheetTitle] = useState('');
   const [sheetJudgeCount, setSheetJudgeCount] = useState(DEFAULT_JUDGE_COUNT);
   const [sheetCode, setSheetCode] = useState('');
+  const [sheetDelegates, setSheetDelegates] = useState('');
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleResult, setGoogleResult] = useState(null);
+  const [googleLinkCopied, setGoogleLinkCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [sessionCounter, setSessionCounter] = useState(() => getCachedSessionCounter());
@@ -250,13 +256,58 @@ export default function ScoringLanding() {
         id: sheetId,
         title: sheetTitle.trim(),
         judgeCount: sheetJudgeCount,
-        language
+        language,
+        delegates: parseDelegateList(sheetDelegates)
       }));
       navigate(`/sheet/${sheetId}`);
     } catch (submitError) {
       console.error(submitError);
       setError(getCreateSessionErrorMessage(submitError, t.landing.scoresheetError));
       setSubmitting(false);
+    }
+  };
+
+  const handleGoogleSheetCreate = async () => {
+    if (!sheetTitle.trim()) {
+      setError(t.create.completeFields);
+      return;
+    }
+    if (googleBusy || submitting) return;
+
+    setGoogleBusy(true);
+    setError('');
+    setGoogleResult(null);
+    try {
+      // The Google sign-in popup opens first, straight from the click, so browsers allow it.
+      const result = await createGoogleScoresheet({
+        title: sheetTitle.trim(),
+        judgeNames: Array.from({ length: sheetJudgeCount }, (_, index) => `JUDGE ${index + 1}`),
+        delegates: parseDelegateList(sheetDelegates),
+        language
+      });
+      setGoogleResult(result);
+    } catch (googleError) {
+      console.error(googleError);
+      const messages = {
+        'api-disabled': t.landing.scoresheetGoogleApiDisabled,
+        'popup-blocked': t.landing.scoresheetGooglePopupBlocked
+      };
+      if (googleError?.code !== 'cancelled') {
+        setError(messages[googleError?.code] || `${t.landing.scoresheetGoogleError}${googleError?.message ? ` (${googleError.message})` : ''}`);
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const copyGoogleLink = async () => {
+    if (!googleResult?.spreadsheetUrl) return;
+    try {
+      await navigator.clipboard.writeText(googleResult.spreadsheetUrl);
+      setGoogleLinkCopied(true);
+      setTimeout(() => setGoogleLinkCopied(false), 1800);
+    } catch {
+      window.prompt(t.landing.scoresheetGoogleCopy, googleResult.spreadsheetUrl);
     }
   };
 
@@ -305,16 +356,56 @@ export default function ScoringLanding() {
             className="scoring-input w-20 rounded-md h-8 px-2 text-sm text-center"
           />
         </label>
-        <div className="flex items-center gap-2 pt-1">
+        <textarea
+          value={sheetDelegates}
+          onChange={event => setSheetDelegates(event.target.value)}
+          rows={3}
+          className="scoring-input w-full rounded-lg px-3 py-2 text-sm resize-y min-h-[44px]"
+          placeholder={t.landing.scoresheetDelegatesPlaceholder}
+        />
+        <div className="flex flex-col sm:flex-row items-stretch gap-2 pt-1">
           {showBack && (
             <button type="button" onClick={resetRoleFlow} className="scoring-btn-secondary rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest">
               {t.landing.workflowBack}
             </button>
           )}
-          <button type="submit" disabled={submitting} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetCreating}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetCreate}</>}
+          <button type="submit" disabled={submitting || googleBusy} className="scoring-btn-primary flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetCreating}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetLiveCreate}</>}
+          </button>
+          <button
+            type="button"
+            onClick={handleGoogleSheetCreate}
+            disabled={submitting || googleBusy}
+            className="flex-1 rounded-lg h-11 px-4 text-xs font-bold uppercase tracking-widest disabled:opacity-50 inline-flex items-center justify-center gap-2 border border-[#16a34a]/50 bg-[#16a34a]/10 text-[#16a34a] hover:bg-[#16a34a]/20 transition-colors"
+          >
+            {googleBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> {t.landing.scoresheetGoogleBusy}</> : <><Sheet className="w-4 h-4" /> {t.landing.scoresheetGoogleCreate}</>}
           </button>
         </div>
+        <p className="text-[11px] text-app-muted/70 leading-relaxed">{t.landing.scoresheetGoogleHint}</p>
+        {googleResult && (
+          <div className="rounded-xl border border-[#16a34a]/45 bg-[#16a34a]/10 p-3 space-y-2">
+            <p className="text-sm font-bold text-app-text inline-flex items-center gap-2">
+              <Check className="w-4 h-4 text-[#16a34a]" />
+              {t.landing.scoresheetGoogleReady}
+            </p>
+            <p className="text-xs text-app-muted">{googleResult.shared ? t.landing.scoresheetGoogleShared : t.landing.scoresheetGoogleNotShared}</p>
+            <div className="flex gap-2">
+              <a
+                href={googleResult.spreadsheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="scoring-btn-primary flex-1 rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center justify-center gap-2 no-underline"
+              >
+                <ExternalLink className="w-4 h-4" />
+                {t.landing.scoresheetGoogleOpen}
+              </a>
+              <button type="button" onClick={copyGoogleLink} className="scoring-btn-secondary rounded-lg h-10 px-3 text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2">
+                {googleLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {googleLinkCopied ? t.landing.scoresheetGoogleCopied : t.landing.scoresheetGoogleCopy}
+              </button>
+            </div>
+          </div>
+        )}
       </form>
       <form onSubmit={handleScoresheetOpen} className="border-t border-app-border/50 pt-4 space-y-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-app-muted/80">{t.landing.scoresheetOpenLabel}</p>

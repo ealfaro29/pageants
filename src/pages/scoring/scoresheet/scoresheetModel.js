@@ -42,12 +42,12 @@ export function makeEmptyRow(delegate = '') {
   return { delegate, comment: '', scores: {} };
 }
 
-export function makePhase(name, { rowCount = 0, qualifyCount = 0, awards = [] } = {}) {
+export function makePhase(name, { rowCount = 0, qualifyCount = 0, awards = [], delegates = [] } = {}) {
   const rows = {};
   const rowOrder = [];
-  for (let index = 0; index < rowCount; index += 1) {
+  for (let index = 0; index < Math.max(rowCount, delegates.length); index += 1) {
     const rowId = makeId('r');
-    rows[rowId] = makeEmptyRow();
+    rows[rowId] = makeEmptyRow(delegates[index] || '');
     rowOrder.push(rowId);
   }
   return {
@@ -59,7 +59,7 @@ export function makePhase(name, { rowCount = 0, qualifyCount = 0, awards = [] } 
   };
 }
 
-export function buildDefaultScoresheet({ id, title, judgeCount, language }) {
+export function buildDefaultScoresheet({ id, title, judgeCount, language, delegates = [] }) {
   const judges = {};
   const judgeOrder = [];
   const count = Math.min(MAX_JUDGES, Math.max(1, Number(judgeCount) || DEFAULT_JUDGE_COUNT));
@@ -73,6 +73,7 @@ export function buildDefaultScoresheet({ id, title, judgeCount, language }) {
     makePhase('Opening', {
       rowCount: 20,
       qualifyCount: 15,
+      delegates,
       awards: ['Best in National Costume', 'Best in Introduction', 'Best in Preliminaries - Swim', 'Best in Preliminaries - EG']
     }),
     makePhase('Swimsuit', { qualifyCount: 10 }),
@@ -99,6 +100,14 @@ export function buildDefaultScoresheet({ id, title, judgeCount, language }) {
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
+}
+
+// One delegate per line (pasted from Excel, Docs or WhatsApp). Keeps only the first column.
+export function parseDelegateList(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map(line => line.split('\t')[0].trim())
+    .filter(Boolean);
 }
 
 // Accepts "9.5", "9,5", " 10 ". Returns null for blank, NaN for garbage.
