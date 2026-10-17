@@ -166,7 +166,7 @@ const AWARDS_ID = 99;
 const SETUP_TITLE_ROW = 4; // 1-based rows of the inputs in SETUP (column C)
 const SETUP_MAX_ROW = 5;
 const SETUP_FIRST_JUDGE_ROW = 8;
-const MIN_JUDGE_SLOTS = 10;
+const MIN_JUDGE_SLOTS = 6;
 const MAX_JUDGE_SLOTS = 20;
 
 // Judge columns are created up front: a name in SETUP turns a column on, an empty slot turns it off.
