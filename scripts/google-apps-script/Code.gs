@@ -30,7 +30,7 @@ const T = {
   how: [
     ['Cambia aquí el nombre de los jueces una sola vez: todos los tabs se actualizan.', 'Rename the judges here once: every tab updates.'],
     ['Escribe las delegadas en el primer tab. Cada juez escribe en su columna.', 'Type the delegates in the first tab. Each judge types in their own column.'],
-    ['TOTAL y RANK se calculan solos. Marca ORDENAR POR RANK para ver los resultados ordenados (se ordenan solos al completar los puntajes).', 'TOTAL and RANK are automatic. Tick SORT BY RANK to sort the results (they sort themselves once every score is in).'],
+    ['La tabla de la izquierda queda en el orden en que escribes. La tabla RANKING de la derecha calcula TOTAL, RANK y ESTADO y se ordena sola.', 'The left table keeps the order you type in. The RANKING table on the right computes TOTAL, RANK and STATUS and sorts itself.'],
     ['Define CLASIFICAN en cada tab: las clasificadas aparecen solas en el siguiente tab.', 'Set QUALIFY TOP on each tab: the qualified delegates appear in the next tab automatically.'],
     ['Las fórmulas están bloqueadas: solo se editan las celdas blancas.', 'Formulas are locked: only the white cells can be edited.'],
     ['Usa punto para decimales (9.5).', 'Use a dot for decimals (9.5).']
@@ -40,8 +40,8 @@ const T = {
   colRank: ['RANK', 'RANK'],
   colStatus: ['ESTADO', 'STATUS'],
   colComments: ['COMENTARIOS', 'COMMENTS'],
-  results: 'RESULTADOS · RESULTS',
-  sortByRank: ['ORDENAR POR RANK · SORT BY RANK', '   se ordena solo al completar · auto when complete'],
+  results: 'RANKING',
+  autoRanking: 'ORDEN AUTOMÁTICO · AUTO-SORTED',
   qualifyTop: 'CLASIFICAN · QUALIFY TOP',
   placements: 'POSICIONES · PLACEMENTS',
   scoresEntered: 'PUNTAJES · SCORES',
@@ -128,7 +128,6 @@ const pad = { left: 8, right: 8 };
 const textCell = (value, format) => ({ userEnteredValue: { stringValue: String(value) }, userEnteredFormat: format });
 const formulaCell = (formula, format) => ({ userEnteredValue: { formulaValue: formula }, userEnteredFormat: format });
 const numberCell = (value, format) => ({ userEnteredValue: { numberValue: value }, userEnteredFormat: format });
-const boolCell = (value, format) => ({ userEnteredValue: { boolValue: value }, userEnteredFormat: format });
 const blankCell = format => ({ userEnteredFormat: format });
 
 // Two-line bilingual label: Spanish on top, English smaller and muted underneath.
@@ -140,18 +139,6 @@ function bilingualCell([es, en], format, enColor) {
     textFormatRuns: [
       { startIndex: 0 },
       { startIndex: es.length + 1, format: { bold: false, fontSize: Math.max(7, (format.textFormat?.fontSize || 10) - 2), foregroundColorStyle: { rgbColor: rgb(enColor) } } }
-    ]
-  };
-}
-
-// One line with a muted tail: "MAIN   tail".
-function splitToneCell([main, tail], format, tailColor) {
-  return {
-    userEnteredValue: { stringValue: main + tail },
-    userEnteredFormat: format,
-    textFormatRuns: [
-      { startIndex: 0 },
-      { startIndex: main.length, format: { bold: false, italic: true, foregroundColorStyle: { rgbColor: rgb(tailColor) } } }
     ]
   };
 }
@@ -241,21 +228,21 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   const J = judgeCount;
   const R = rowCount;
   const E = 4 + R; // last 1-based data row
-  // Score entry table
+  // Score entry table (input order): # | DELEGADA | judges | COMENTARIOS
   const NUM = 1;
   const DEL = 2;
   const J0 = 3;
   const JL = J0 + J - 1;
-  const TOT = JL + 1;
-  const RK = TOT + 1;
-  const ST = RK + 1;
-  const CM = ST + 1;
-  // Results table
-  const GAP = CM + 1;
+  const CM = JL + 1;
+  // Hidden helper columns that feed the ranking and the next tab.
+  const TOT = CM + 1;
+  const RK = CM + 2;
+  const ST = CM + 3;
+  // Ranking table (always sorted): RANK | DELEGADA | TOTAL | ESTADO
+  const GAP = ST + 1;
   const R_RK = GAP + 1;
   const R_DEL = R_RK + 1;
-  const R_J0 = R_DEL + 1;
-  const R_TOT = R_J0 + J;
+  const R_TOT = R_DEL + 1;
   const R_ST = R_TOT + 1;
   const END = R_ST + 1;
   const columnCount = END + 1;
@@ -265,26 +252,25 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   const rankCol = `$${L(RK)}$5:$${L(RK)}$${E}`;
   const totalCol = `$${L(TOT)}$5:$${L(TOT)}$${E}`;
   const qualifyRef = `$${L(J0)}$3`;
-  const sortRef = `$${L(R_RK)}$3`;
   const namesCount = `SUMPRODUCT(--(LEN($${L(DEL)}$5:$${L(DEL)}$${E})>0))`;
   const scoresBlock = `$${L(J0)}$5:$${L(JL)}$${E}`;
+  const tieFormula = `AND(${qualifyRef}>0,COUNTIF(${rankCol},"<="&${qualifyRef})>${qualifyRef})`;
 
   const dark = fmt({ bg: COLORS.ink });
   const banner = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 20 });
   const phaseFmt = fmt({ bg: COLORS.ink, color: COLORS.white, bold: true, size: 15 });
-  const sectionGold = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 10 });
+  const sectionGold = fmt({ bg: COLORS.ink, color: COLORS.gold, bold: true, size: 13 });
   const control = fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, size: 9 });
   const controlLabel = fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9, align: 'RIGHT', padding: pad });
   const controlInput = fmt({ bg: COLORS.white, color: COLORS.ink, bold: true, size: 13, align: 'CENTER', borders: { top: medium(COLORS.gold), bottom: medium(COLORS.gold), left: medium(COLORS.gold), right: medium(COLORS.gold) } });
   const controlInfo = fmt({ bg: COLORS.panel, color: COLORS.gold, bold: true, size: 9, padding: pad });
-  const controlWarn = fmt({ bg: COLORS.panel, color: COLORS.warn, bold: true, size: 9, padding: pad });
-  const checkbox = fmt({ bg: COLORS.panel, color: COLORS.gold, align: 'CENTER', size: 12 });
   const header = align => fmt({ bg: COLORS.header, color: COLORS.white, bold: true, size: 9, align, borders: { bottom: medium(COLORS.gold) }, padding: pad });
   const resultsHeader = align => fmt({ bg: COLORS.gold, color: COLORS.ink, bold: true, size: 9, align, borders: { bottom: medium(COLORS.ink) }, padding: pad });
 
   const formulaFmt = (align, extra = {}) => fmt({ bg: COLORS.formulaBg, color: COLORS.text, align, borders: rowBorder, padding: pad, ...extra });
   const inputFmt = (align, extra = {}) => fmt({ bg: COLORS.white, color: COLORS.text, align, borders: { ...rowBorder, right: thin(COLORS.border) }, padding: pad, ...extra });
   const resultFmt = (align, extra = {}) => fmt({ color: COLORS.text, align, borders: rowBorder, padding: pad, ...extra });
+  const hiddenFmt = fmt({ size: 8, color: COLORS.muted });
 
   const rows = [];
   const filled = format => Array.from({ length: columnCount }, () => blankCell(format));
@@ -294,51 +280,48 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
   row1[NUM] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_TITLE_ROW})`, banner);
   rows.push(row1);
 
-  // Row 2: phase name / section titles.
+  // Row 2: phase name, score progress, ranking title.
   const row2 = filled(dark);
   row2[NUM] = textCell(phase.name.toUpperCase(), phaseFmt);
   row2[CM] = formulaCell(`="${T.scoresEntered}  "&COUNT(${scoresBlock})&" / "&(${namesCount}*${J})`, fmt({ bg: COLORS.ink, color: COLORS.mutedOnDark, bold: true, size: 9, align: 'RIGHT', padding: pad }));
   row2[R_RK] = textCell(T.results, sectionGold);
   rows.push(row2);
 
-  // Row 3: controls.
+  // Row 3: qualify control + ranking status (tie warning or auto-sort note).
   const row3 = filled(control);
   row3[0] = blankCell(dark);
-  row3[END] = blankCell(dark);
   row3[GAP] = blankCell(dark);
+  row3[END] = blankCell(dark);
   row3[NUM] = textCell(isLast ? T.placements : T.qualifyTop, controlLabel);
   row3[J0] = numberCell(phase.qualify, controlInput);
   row3[J0 + 1] = isLast
     ? formulaCell(`="TOP "&${qualifyRef}`, controlInfo)
     : formulaCell(`="TOP "&${qualifyRef}&"  →  ${nextPhase.name.toUpperCase()}"`, controlInfo);
-  row3[ST] = formulaCell(`=IF(AND(${qualifyRef}>0,COUNTIF(${rankCol},"<="&${qualifyRef})>${qualifyRef}),"${T.tie}","")`, controlWarn);
-  row3[R_RK] = boolCell(false, checkbox);
-  row3[R_DEL] = splitToneCell(T.sortByRank, fmt({ bg: COLORS.panel, color: COLORS.white, bold: true, size: 9 }), COLORS.mutedOnDark);
+  row3[R_RK] = formulaCell(
+    `=IF(${tieFormula},"${T.tie}","${T.autoRanking}")`,
+    fmt({ bg: COLORS.panel, color: COLORS.mutedOnDark, bold: true, size: 9, padding: pad })
+  );
   rows.push(row3);
 
   // Row 4: headers.
   const row4 = filled(fmt());
-  row4[0] = blankCell(fmt());
   row4[NUM] = textCell('#', header('CENTER'));
   row4[DEL] = bilingualCell(T.colDelegate, header('LEFT'), COLORS.mutedOnDark);
+  for (let j = 0; j < J; j += 1) {
+    row4[J0 + j] = formulaCell(`=UPPER(${setupRef}!$C$${SETUP_FIRST_JUDGE_ROW + j})`, header('CENTER'));
+  }
+  row4[CM] = bilingualCell(T.colComments, header('LEFT'), COLORS.mutedOnDark);
+  row4[TOT] = textCell('TOTAL', hiddenFmt);
+  row4[RK] = textCell('RANK', hiddenFmt);
+  row4[ST] = textCell('STATUS', hiddenFmt);
   row4[R_RK] = textCell('RANK', resultsHeader('CENTER'));
   row4[R_DEL] = bilingualCell(T.colDelegate, resultsHeader('LEFT'), COLORS.header);
-  for (let j = 0; j < J; j += 1) {
-    const judgeName = `=UPPER(${setupRef}!$C$${SETUP_FIRST_JUDGE_ROW + j})`;
-    row4[J0 + j] = formulaCell(judgeName, header('CENTER'));
-    row4[R_J0 + j] = formulaCell(judgeName, resultsHeader('CENTER'));
-  }
-  row4[TOT] = textCell('TOTAL', header('RIGHT'));
-  row4[RK] = textCell('RANK', header('CENTER'));
-  row4[ST] = bilingualCell(T.colStatus, header('LEFT'), COLORS.mutedOnDark);
-  row4[CM] = bilingualCell(T.colComments, header('LEFT'), COLORS.mutedOnDark);
   row4[R_TOT] = textCell('TOTAL', resultsHeader('RIGHT'));
   row4[R_ST] = bilingualCell(T.colStatus, resultsHeader('LEFT'), COLORS.header);
   rows.push(row4);
 
   const prevRef = prevPhase ? quoteSheet(prevPhase.name.toUpperCase()) : null;
-  const resultsArray = `{${L(RK)}5:${L(RK)}${E},${L(DEL)}5:${L(DEL)}${E},${L(J0)}5:${L(JL)}${E},${L(TOT)}5:${L(TOT)}${E},${L(ST)}5:${L(ST)}${E}}`;
-  const complete = `AND(${namesCount}>0,COUNT(${scoresBlock})>=${namesCount}*${J})`;
+  const rankingArray = `{${L(RK)}5:${L(RK)}${E},${L(DEL)}5:${L(DEL)}${E},${L(TOT)}5:${L(TOT)}${E},${L(ST)}5:${L(ST)}${E}}`;
 
   for (let i = 0; i < R; i += 1) {
     const r = 5 + i;
@@ -358,64 +341,66 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
     }
 
     for (let j = 0; j < J; j += 1) cells[J0 + j] = blankCell(inputFmt('CENTER', { size: 11 }));
-
-    const scoreRange = `${L(J0)}${r}:${L(JL)}${r}`;
-    cells[TOT] = formulaCell(`=IF(COUNT(${scoreRange})=0,"",SUM(${scoreRange}))`, formulaFmt('RIGHT', { bold: true, pattern: '0.00' }));
-    cells[RK] = formulaCell(`=IF(OR(${L(DEL)}${r}="",${L(TOT)}${r}=""),"",RANK(${L(TOT)}${r},${totalCol},0))`, formulaFmt('CENTER', { bold: true, size: 11 }));
-
-    const rankRef = `${L(RK)}${r}`;
-    const status = isLast
-      ? `=IF(${rankRef}="","",IF(${rankRef}=1,"${T.winner}",IF(${rankRef}<=${qualifyRef},${T.runnerUp(rankRef)},"")))`
-      : `=IF(${rankRef}="","",IF(${rankRef}<=${qualifyRef},"${T.qualified}",""))`;
-    cells[ST] = formulaCell(status, formulaFmt('LEFT', { bold: true, size: 8, color: COLORS.goldText }));
     cells[CM] = blankCell(inputFmt('LEFT', { size: 9, wrap: true }));
 
+    const scoreRange = `${L(J0)}${r}:${L(JL)}${r}`;
+    const rankRef = `${L(RK)}${r}`;
+    cells[TOT] = formulaCell(`=IF(OR(${L(DEL)}${r}="",COUNT(${scoreRange})=0),"",SUM(${scoreRange}))`, hiddenFmt);
+    cells[RK] = formulaCell(`=IF(${L(TOT)}${r}="","",RANK(${L(TOT)}${r},${totalCol},0))`, hiddenFmt);
+    cells[ST] = formulaCell(isLast
+      ? `=IF(${rankRef}="","",IF(${rankRef}=1,"${T.winner}",IF(${rankRef}<=${qualifyRef},${T.runnerUp(rankRef)},"")))`
+      : `=IF(${rankRef}="","",IF(${rankRef}<=${qualifyRef},"${T.qualified}",""))`, hiddenFmt);
+
+    // Ranking: unscored delegates go to the bottom (blank rank sorts after numbers).
     cells[R_RK] = i === 0
-      ? formulaCell(`=IFERROR(LET(data,FILTER(${resultsArray},${L(DEL)}5:${L(DEL)}${E}<>""),IF(OR(${sortRef},${complete}),SORT(data,1,TRUE),data)),"")`, resultFmt('CENTER', { bold: true, size: 12 }))
+      ? formulaCell(`=IFERROR(SORT(FILTER(${rankingArray},${L(DEL)}5:${L(DEL)}${E}<>""),1,TRUE),"")`, resultFmt('CENTER', { bold: true, size: 12 }))
       : blankCell(resultFmt('CENTER', { bold: true, size: 12 }));
     cells[R_DEL] = blankCell(resultFmt('LEFT', { bold: true }));
-    for (let j = 0; j < J; j += 1) cells[R_J0 + j] = blankCell(resultFmt('CENTER', { color: COLORS.muted }));
     cells[R_TOT] = blankCell(resultFmt('RIGHT', { bold: true, size: 11, pattern: '0.00' }));
     cells[R_ST] = blankCell(resultFmt('LEFT', { bold: true, size: 8, color: COLORS.goldText }));
     rows.push(cells);
   }
 
   const heights = [56, 36, 38, 42, ...Array(R).fill(30)];
-  const widths = [];
-  widths[0] = 16;
-  widths[NUM] = 40;
-  widths[DEL] = 220;
-  for (let j = 0; j < J; j += 1) { widths[J0 + j] = 84; widths[R_J0 + j] = 70; }
-  widths[TOT] = 84;
-  widths[RK] = 64;
-  widths[ST] = 180;
-  widths[CM] = 220;
-  widths[GAP] = 28;
-  widths[R_RK] = 64;
-  widths[R_DEL] = 200;
-  widths[R_TOT] = 84;
-  widths[R_ST] = 180;
-  widths[END] = 16;
+  const columnMetadata = [];
+  const width = (col, pixelSize, hidden = false) => { columnMetadata[col] = hidden ? { pixelSize, hiddenByUser: true } : { pixelSize }; };
+  width(0, 16);
+  width(NUM, 40);
+  width(DEL, 230);
+  for (let j = 0; j < J; j += 1) width(J0 + j, 86);
+  width(CM, 240);
+  width(TOT, 70, true);
+  width(RK, 50, true);
+  width(ST, 120, true);
+  width(GAP, 32);
+  width(R_RK, 70);
+  width(R_DEL, 230);
+  width(R_TOT, 96);
+  width(R_ST, 200);
+  width(END, 16);
 
   const dataRows = [4, E];
-  const qualifiedRow = col => `=AND($${L(col)}5<>"",$${L(col)}5<=${qualifyRef})`;
+  const rRank = `$${L(R_RK)}5`;
   const conditionalFormats = [
     customRule([gridRange(sheetId, ...dataRows, J0, JL + 1)], `=AND($${L(DEL)}5<>"",${L(J0)}5="")`, bg(COLORS.missing)),
+    // Tie at the cutoff on the ranking.
     customRule(
-      [gridRange(sheetId, ...dataRows, RK, RK + 1)],
-      `=AND($${L(RK)}5<>"",$${L(RK)}5<=${qualifyRef},$${L(RK)}5+COUNTIF(${rankCol},$${L(RK)}5)-1>${qualifyRef})`,
+      [gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)],
+      `=AND(${rRank}<>"",${rRank}<=${qualifyRef},${rRank}+COUNTIF(${rankCol},${rRank})-1>${qualifyRef})`,
       { ...bg(COLORS.tieBg), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.tieText) } } }
     ),
-    // Medal colours on the results rank.
-    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=1`, { ...bg(COLORS.gold), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.ink) } } }),
-    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=2`, { ...bg(COLORS.silver), textFormat: { bold: true } }),
-    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=$${L(R_RK)}5=3`, { ...bg(COLORS.bronze), textFormat: { bold: true } })
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=${rRank}=1`, { ...bg(COLORS.gold), textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.ink) } } }),
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=${rRank}=2`, { ...bg(COLORS.silver), textFormat: { bold: true } }),
+    customRule([gridRange(sheetId, ...dataRows, R_RK, R_RK + 1)], `=${rRank}=3`, { ...bg(COLORS.bronze), textFormat: { bold: true } })
   ];
   if (isLast) {
-    conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=$${L(R_RK)}5=1`, { ...bg(COLORS.goldMid), textFormat: { bold: true } }));
+    conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=${rRank}=1`, { ...bg(COLORS.goldMid), textFormat: { bold: true } }));
   }
-  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, NUM, ST + 1)], qualifiedRow(RK), bg(COLORS.goldSoft)));
-  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], qualifiedRow(R_RK), bg(COLORS.goldSoft)));
+  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, R_DEL, R_ST + 1)], `=AND(${rRank}<>"",${rRank}<=${qualifyRef})`, bg(COLORS.goldSoft)));
+  // Light gold on the entry rows that qualify, so judges see the cut without moving rows.
+  conditionalFormats.push(customRule([gridRange(sheetId, ...dataRows, NUM, DEL + 1)], `=AND($${L(RK)}5<>"",$${L(RK)}5<=${qualifyRef})`, bg(COLORS.goldSoft)));
+  // Tie warning text in orange.
+  conditionalFormats.push(customRule([gridRange(sheetId, 2, 3, R_RK, R_ST + 1)], `=${tieFormula}`, { textFormat: { bold: true, foregroundColorStyle: { rgbColor: rgb(COLORS.warn) } } }));
 
   const bandedRanges = [{
     range: gridRange(sheetId, ...dataRows, R_RK, R_ST + 1),
@@ -424,7 +409,6 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
 
   const unprotected = [
     gridRange(sheetId, 2, 3, J0, J0 + 1),
-    gridRange(sheetId, 2, 3, R_RK, R_RK + 1),
     gridRange(sheetId, ...dataRows, J0, JL + 1),
     gridRange(sheetId, ...dataRows, CM, CM + 1)
   ];
@@ -435,10 +419,9 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
     gridRange(sheetId, 1, 2, NUM, CM),
     gridRange(sheetId, 1, 2, R_RK, R_ST + 1),
     gridRange(sheetId, 2, 3, NUM, J0),
-    gridRange(sheetId, 2, 3, J0 + 1, ST),
-    gridRange(sheetId, 2, 3, ST, CM + 1),
-    gridRange(sheetId, 2, 3, R_DEL, R_ST + 1)
+    gridRange(sheetId, 2, 3, R_RK, R_ST + 1)
   ];
+  if (CM - (J0 + 1) + 1 > 1) merges.push(gridRange(sheetId, 2, 3, J0 + 1, CM + 1));
 
   return {
     sheet: {
@@ -454,34 +437,26 @@ function buildPhaseSheet({ sheetId, index, phase, prevPhase, nextPhase, isFirst,
         startColumn: 0,
         rowData: rows.map(values => ({ values })),
         rowMetadata: heights.map(pixelSize => ({ pixelSize })),
-        columnMetadata: widths.map(pixelSize => ({ pixelSize }))
+        columnMetadata
       }],
       merges,
       conditionalFormats,
       bandedRanges,
       protectedRanges: [lockSheet(sheetId, unprotected)]
     },
-    validations: [
-      {
-        setDataValidation: {
-          range: gridRange(sheetId, ...dataRows, J0, JL + 1),
-          rule: {
-            condition: {
-              type: 'CUSTOM_FORMULA',
-              values: [{ userEnteredValue: `=AND(ISNUMBER(${L(J0)}5),${L(J0)}5>=0,${L(J0)}5<=INDIRECT("${quoteSheet(T.setupTab)}!C${SETUP_MAX_ROW}"))` }]
-            },
-            inputMessage: T.scoreHint,
-            strict: true
-          }
-        }
-      },
-      {
-        setDataValidation: {
-          range: gridRange(sheetId, 2, 3, R_RK, R_RK + 1),
-          rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true }
+    validations: [{
+      setDataValidation: {
+        range: gridRange(sheetId, ...dataRows, J0, JL + 1),
+        rule: {
+          condition: {
+            type: 'CUSTOM_FORMULA',
+            values: [{ userEnteredValue: `=AND(ISNUMBER(${L(J0)}5),${L(J0)}5>=0,${L(J0)}5<=INDIRECT("${quoteSheet(T.setupTab)}!C${SETUP_MAX_ROW}"))` }]
+          },
+          inputMessage: T.scoreHint,
+          strict: true
         }
       }
-    ]
+    }]
   };
 }
 
